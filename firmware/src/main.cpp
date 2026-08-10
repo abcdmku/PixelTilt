@@ -38,6 +38,9 @@ static void setupPanel() {
   // Library defaults (SHIFTREG driver, default clock phase) — same config as
   // Seengreat's own demo sketch.
   HUB75_I2S_CFG cfg(PANEL_W, PANEL_H, PANEL_CHAIN, pins);
+#if PANEL_FM6126A
+  cfg.driver = HUB75_I2S_CFG::FM6126A;
+#endif
   panel = new MatrixPanel_I2S_DMA(cfg);
   panel->begin();
   panel->setBrightness8(PANEL_BRIGHTNESS);

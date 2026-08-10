@@ -24,6 +24,13 @@
 #define PANEL_CHAIN 1
 #define PANEL_BRIGHTNESS 160  // 0-255
 
+// Panel driver chip. 0 = generic shift-register (most panels, and what
+// Seengreat's demo uses). If the firmware is clearly alive (serial heartbeat
+// at 60 fps) but the panel stays completely black with power and ribbon
+// verified, your panel likely uses an FM6126A driver that needs an init
+// sequence — set this to 1 and reflash.
+#define PANEL_FM6126A 0
+
 // --- I2C bus (expansion header + onboard peripherals) ----------------------
 // The 4-pin 1mm I2C header is where the GY-BNO08x plugs in. The bus is shared
 // with the PCA9557 key expander (0x19), the PCF85063A RTC and the audio
