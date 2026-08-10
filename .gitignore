@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.toolchain/
+.pio/
+__pycache__/
+*.pyc
+frontend/public/pixeltilt.wasm
+.DS_Store
+Thumbs.db

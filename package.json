@@ -1,0 +1,21 @@
+{
+  "name": "pixeltilt",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Modular tilt-game framework for the Seengreat RGB Matrix HUB75 S3 (ESP32-S3 + 64x64 HUB75 + BNO08x), with a browser emulator",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "gen": "node tools/gen-games.mjs",
+    "new-game": "node tools/new-game.mjs",
+    "wasm": "node tools/build-wasm.mjs",
+    "test": "node tools/build-wasm.mjs && node tools/smoke-test.mjs",
+    "dev": "npm run wasm && npm --workspace frontend run dev",
+    "build": "npm run wasm && npm --workspace frontend run build",
+    "flash": "pio run -t upload",
+    "monitor": "pio device monitor -b 115200"
+  }
+}
