@@ -61,9 +61,23 @@ compiler install.
 ## Flash the device
 
 ```sh
-pip install platformio    # once
-npm run flash             # = pio run -t upload  (USB-C, board auto-detected)
-npm run monitor           # serial console at 115200
+npm run flash                  # auto-detects the S3, builds, uploads
+npm run flash -- --monitor     # same, then opens the serial console
+npm run flash -- --port COM7   # pin a specific port
+npm run monitor                # serial console at 115200
+```
+
+The flasher is self-sufficient: it offers to `pip install platformio` if it's
+missing, scans serial ports for the S3 (Espressif's native USB id), asks
+before using an ambiguous port, walks you through BOOT+RESET if an upload
+fails, and finishes with a RAM/Flash usage report:
+
+```
+------------------------------------------------------------------------
+  FLASHED OK -> COM10
+  RAM    [##..................]  10.8%   35,400 / 327,680 bytes
+  Flash  [#...................]   5.1%   331,197 / 6,553,600 bytes
+------------------------------------------------------------------------
 ```
 
 The firmware boots into the same menu you see in the emulator: wheel to

@@ -15,7 +15,7 @@
     "test": "node tools/build-wasm.mjs && node tools/smoke-test.mjs",
     "dev": "npm run wasm && npm --workspace frontend run dev",
     "build": "npm run wasm && npm --workspace frontend run build",
-    "flash": "pio run -t upload",
+    "flash": "node tools/flash.mjs",
     "monitor": "pio device monitor -b 115200"
   }
 }
