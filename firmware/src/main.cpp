@@ -20,6 +20,8 @@ static MatrixPanel_I2S_DMA* panel = nullptr;
 static PCA9557 keys;
 static BNO08x imu;
 static bool imuOk = false;
+static bool keysOk = false;
+static uint32_t frameCount = 0;
 
 // Raw gravity from the IMU (m/s^2) and the boot-time "flat" reference that
 // gets subtracted so the game zero matches however the device sits at boot.
@@ -33,11 +35,22 @@ static void setupPanel() {
       HUB75_A,  HUB75_B,  HUB75_C,  HUB75_D,  HUB75_E,
       HUB75_LAT, HUB75_OE, HUB75_CLK,
   };
+  // Library defaults (SHIFTREG driver, default clock phase) — same config as
+  // Seengreat's own demo sketch.
   HUB75_I2S_CFG cfg(PANEL_W, PANEL_H, PANEL_CHAIN, pins);
-  cfg.clkphase = false;
   panel = new MatrixPanel_I2S_DMA(cfg);
   panel->begin();
   panel->setBrightness8(PANEL_BRIGHTNESS);
+  panel->clearScreen();
+
+  // Boot test pattern: a quick rainbow sweep proves panel wiring/power
+  // before any game logic runs.
+  for (int x = 0; x < PANEL_W; x++) {
+    pt::Color c = pt::hsv(x * (360.0f / PANEL_W), 1.0f, 1.0f);
+    for (int y = 0; y < PANEL_H; y++) panel->drawPixelRGB888(x, y, c.r, c.g, c.b);
+    delay(8);
+  }
+  delay(300);
   panel->clearScreen();
 }
 
@@ -45,9 +58,17 @@ static void enableImuReports() {
   imu.enableGravity(10);  // 100 Hz
 }
 
+// The SparkFun BNO08x begin() can block indefinitely when nothing answers at
+// the address, so ping the bus first and only hand begin() a live device.
+static bool i2cPresent(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  return Wire.endTransmission() == 0;
+}
+
 static bool setupImu() {
-  if (imu.begin(BNO08X_ADDR_PRIMARY, Wire)) return true;
-  return imu.begin(BNO08X_ADDR_SECONDARY, Wire);
+  if (i2cPresent(BNO08X_ADDR_PRIMARY)) return imu.begin(BNO08X_ADDR_PRIMARY, Wire);
+  if (i2cPresent(BNO08X_ADDR_SECONDARY)) return imu.begin(BNO08X_ADDR_SECONDARY, Wire);
+  return false;
 }
 
 static void pollImu() {
@@ -116,10 +137,16 @@ static void blit() {
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("[pixeltilt] boot");
+
+  // Panel first: even if every I2C peripheral is missing, the display comes
+  // up and shows the boot sweep + menu.
+  setupPanel();
 
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ_HZ);
 
-  if (!keys.begin(PCA9557_ADDR)) {
+  keysOk = keys.begin(PCA9557_ADDR);
+  if (!keysOk) {
     Serial.println("WARN: PCA9557 key expander not responding");
   }
 
@@ -128,10 +155,8 @@ void setup() {
     enableImuReports();
     Serial.println("BNO08x online");
   } else {
-    Serial.println("WARN: BNO08x not found (0x4A/0x4B) — tilt disabled");
+    Serial.println("WARN: BNO08x not found (0x4A/0x4B) - tilt disabled");
   }
-
-  setupPanel();
 
   pt::srand_(esp_random());
   pt::engineInit();
@@ -150,6 +175,18 @@ void loop() {
 
   pt::engineTick(tiltX, tiltY, readButtons(), dt);
   blit();
+  frameCount++;
+
+  // Status heartbeat: lets `npm run monitor` (or any late-attached terminal)
+  // see what the board thinks is going on.
+  static uint32_t lastBeat = 0;
+  if (millis() - lastBeat >= 2000) {
+    lastBeat = millis();
+    Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s tilt=%.2f,%.2f game=%d\n",
+                  (unsigned long)(millis() / 1000), (unsigned long)frameCount,
+                  keysOk ? "ok" : "MISSING", keys.readInputs(),
+                  imuOk ? "ok" : "absent", tiltX, tiltY, pt::currentGame());
+  }
 
   // ~60 fps cap; engineTick+blit typically take well under a frame.
   uint32_t elapsed = micros() - now;
