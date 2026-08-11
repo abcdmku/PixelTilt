@@ -1,69 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 620" font-family="Segoe UI, Arial, sans-serif">
-  <rect width="860" height="620" fill="#f8fafc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 700" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="860" height="700" fill="#f8fafc"/>
 
-  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">HUB75 S3 ⇄ GY-BNO08x — UART-RVC pinout</text>
-  <text x="40" y="70" font-size="13" fill="#64748b">bottom pin header on the board · wire by signal name (silkscreen order can vary)</text>
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">HUB75 S3 ⇄ GY-BNO08X — UART-RVC pinout</text>
+  <text x="40" y="70" font-size="13" fill="#64748b">board's RST…IO46 pin header · GY-BNO08X 10-pin breakout · wire by silkscreen name, not position or color</text>
 
   <!-- ============ S3 board block ============ -->
-  <rect x="70" y="110" width="250" height="300" rx="10" fill="#163a24" stroke="#2f855a" stroke-width="2"/>
-  <text x="195" y="140" font-size="15" font-weight="700" fill="#a7f3d0" text-anchor="middle">Seengreat HUB75 S3</text>
-  <text x="195" y="158" font-size="11" fill="#6ee7b7" text-anchor="middle">(ESP32-S3-WROOM-1)</text>
+  <rect x="70" y="100" width="250" height="380" rx="10" fill="#14161c" stroke="#6b7280" stroke-width="2"/>
+  <text x="195" y="130" font-size="15" font-weight="700" fill="#e2e8f0" text-anchor="middle">Seengreat HUB75 S3</text>
+  <text x="195" y="148" font-size="11" fill="#94a3b8" text-anchor="middle">(ESP32-S3-WROOM-1)</text>
 
   <g stroke="#92702a">
-    <circle cx="316" cy="200" r="6" fill="#d4af37"/>
-    <circle cx="316" cy="280" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="180" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="316" cy="210" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="240" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="270" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="316" cy="300" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="330" r="6" fill="#d4af37" opacity="0.35"/>
     <circle cx="316" cy="360" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="390" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="420" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="316" cy="450" r="6" fill="#d4af37" opacity="0.35"/>
   </g>
-  <g font-size="13" fill="#d1fae5" text-anchor="end" font-weight="600">
-    <text x="300" y="204">3V3</text>
-    <text x="300" y="284">GND</text>
-    <text x="300" y="364">RX0 (GPIO 44)</text>
+  <g font-size="13" text-anchor="end">
+    <text x="300" y="184" fill="#64748b">IO46</text>
+    <text x="300" y="214" fill="#d1fae5" font-weight="700">GND</text>
+    <text x="300" y="244" fill="#d1fae5" font-weight="700">3V3</text>
+    <text x="300" y="274" fill="#64748b">IO45</text>
+    <text x="300" y="304" fill="#d1fae5" font-weight="700">RX0 (GPIO 44)</text>
+    <text x="300" y="334" fill="#64748b">TX0</text>
+    <text x="300" y="364" fill="#d1fae5" font-weight="700">GND</text>
+    <text x="300" y="394" fill="#d1fae5" font-weight="700">3V3</text>
+    <text x="300" y="424" fill="#64748b">BOOT</text>
+    <text x="300" y="454" fill="#64748b">RST</text>
   </g>
 
-  <!-- ============ BNO08x block ============ -->
-  <rect x="540" y="110" width="250" height="300" rx="10" fill="#4338ca" stroke="#312e81" stroke-width="2"/>
-  <text x="665" y="140" font-size="15" font-weight="700" fill="#e0e7ff" text-anchor="middle">GY-BNO08x IMU</text>
-  <text x="665" y="158" font-size="11" fill="#c7d2fe" text-anchor="middle">(BNO080 / BNO085, UART-RVC mode)</text>
+  <!-- ============ BNO08X block ============ -->
+  <rect x="540" y="100" width="250" height="380" rx="10" fill="#6d28d9" stroke="#4c1d95" stroke-width="2"/>
+  <text x="665" y="130" font-size="15" font-weight="700" fill="#ede9fe" text-anchor="middle">GY-BNO08X IMU</text>
+  <text x="665" y="148" font-size="11" fill="#c4b5fd" text-anchor="middle">(BNO080 / BNO085, UART-RVC mode)</text>
 
   <g stroke="#92702a">
-    <circle cx="544" cy="190" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="235" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="280" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="325" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="370" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="180" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="210" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="240" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="544" cy="270" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="300" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="544" cy="330" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="544" cy="360" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="544" cy="390" r="6" fill="#d4af37" opacity="0.35"/>
+    <circle cx="544" cy="420" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="450" r="6" fill="#d4af37"/>
   </g>
-  <g font-size="13" fill="#e0e7ff" text-anchor="start" font-weight="600">
-    <text x="560" y="194">VCC / VIN</text>
-    <text x="560" y="239">PS0</text>
-    <text x="560" y="284">GND</text>
-    <text x="560" y="329">PS1</text>
-    <text x="560" y="374">SDA / MISO / TX</text>
+  <g font-size="13" text-anchor="start">
+    <text x="560" y="184" fill="#ede9fe" font-weight="700">VCC</text>
+    <text x="560" y="214" fill="#ede9fe" font-weight="700">GND</text>
+    <text x="560" y="244" fill="#a78bfa">SCL</text>
+    <text x="560" y="274" fill="#ede9fe" font-weight="700">SDA — acts as UART TX</text>
+    <text x="560" y="304" fill="#a78bfa">AD0</text>
+    <text x="560" y="334" fill="#a78bfa">CS</text>
+    <text x="560" y="364" fill="#a78bfa">INT</text>
+    <text x="560" y="394" fill="#a78bfa">RST</text>
+    <text x="560" y="424" fill="#ede9fe" font-weight="700">PS1</text>
+    <text x="560" y="454" fill="#ede9fe" font-weight="700">PS0</text>
   </g>
-  <text x="665" y="398" font-size="10.5" fill="#a5b4fc" text-anchor="middle">SCL/SCK/RX · INT · RST · ADR — leave unconnected</text>
+  <text x="665" y="470" font-size="10.5" fill="#c4b5fd" text-anchor="middle">pin order as silkscreened on the breakout</text>
 
   <!-- ============ wires ============ -->
-  <g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="322,200 430,200 538,190" stroke="#dc2626"/>
-    <polyline points="322,200 430,214 538,235" stroke="#f97316"/>
-    <polyline points="322,280 430,280 538,280" stroke="#1f2937"/>
-    <polyline points="322,280 430,298 538,325" stroke="#64748b"/>
-    <polyline points="322,360 430,364 538,370" stroke="#2563eb"/>
+  <g fill="none" stroke-width="4" stroke-linecap="round">
+    <path d="M322,240 C420,240 440,180 538,180" stroke="#64748b"/>
+    <path d="M322,210 L538,210" stroke="#7c3aed"/>
+    <path d="M322,300 C420,300 440,270 538,270" stroke="#16a34a"/>
+    <path d="M322,360 C420,360 440,420 538,420" stroke="#1f2937"/>
+    <path d="M322,390 C420,390 440,450 538,450" stroke="#dc2626"/>
   </g>
   <g font-size="12" fill="#334155" text-anchor="middle">
-    <g><rect x="382" y="180" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="193">3V3 · VCC</text></g>
-    <g><rect x="382" y="216" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="229">3V3 · PS0</text></g>
-    <g><rect x="382" y="262" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="275">GND · GND</text></g>
-    <g><rect x="382" y="300" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="313">GND · PS1</text></g>
-    <g><rect x="376" y="342" width="108" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="355">TX → RX0 (44)</text></g>
+    <g><rect x="360" y="164" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="177">3V3 → VCC · gray</text></g>
+    <g><rect x="360" y="216" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="229">GND → GND · violet</text></g>
+    <g><rect x="352" y="264" width="156" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="277">RX0 ← TX (SDA) · green</text></g>
+    <g><rect x="360" y="368" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="381">GND → PS1 · black</text></g>
+    <g><rect x="360" y="432" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="445">3V3 → PS0 · red</text></g>
   </g>
 
   <!-- ============ notes ============ -->
-  <rect x="70" y="448" width="720" height="130" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="70" y="508" width="720" height="168" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
   <g font-size="13" fill="#475569">
-    <text x="90" y="476" font-weight="700" fill="#0f172a" font-size="14">Notes</text>
-    <text x="90" y="500">• PS0 high + PS1 low = UART-RVC mode: the sensor streams tilt at 100 Hz, 115200 baud — no I2C clock stretching.</text>
-    <text x="90" y="522">• RX0 is free for this: the serial console runs over the native USB-C port, not UART0.</text>
-    <text x="90" y="544">• Power from 3V3 — safe whether or not the breakout has its own regulator.</text>
-    <text x="90" y="566">• Tilt rotated? Cycle Settings → TILT on the device. Mirrored? Toggle Settings → FLIP. No reflash needed.</text>
+    <text x="90" y="536" font-weight="700" fill="#0f172a" font-size="14">Notes</text>
+    <text x="90" y="560">• PS0 high + PS1 low = UART-RVC mode: the sensor streams tilt at 100 Hz, 115200 baud — no I2C clock stretching.</text>
+    <text x="90" y="582">• RX0 is free for this: the serial console runs over the native USB-C port, not UART0.</text>
+    <text x="90" y="604">• SCL · AD0 · CS · INT · RST stay unconnected. Wire colors match the reference build — trust silkscreen names.</text>
+    <text x="90" y="626">• I2C fallback: strap PS0 and PS1 to GND, wire the 4-pin 1 mm header (3V3 · IO1=SDA · GND · IO2=SCL),</text>
+    <text x="104" y="646">and set IMU_USE_UART_RVC to 0 in firmware/src/board_config.h.</text>
+    <text x="90" y="668">• Tilt rotated? Cycle Settings → TILT on the device. Mirrored? Toggle Settings → FLIP. No reflash needed.</text>
   </g>
 </svg>
