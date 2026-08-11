@@ -40,6 +40,8 @@ void serve(int dir) {
 }
 
 void init() {
+  setSfxStyle(STYLE_ARCADE);
+  music(MUS_ACTION);
   playerY = aiY = (TOP + SCREEN_H) / 2.0f;
   playerScore = aiScore = 0;
   scoreRank = -1;
@@ -99,8 +101,8 @@ void update(float dt) {
 
   bx += bvx * dt;
   by += bvy * dt;
-  if (by < TOP + 1) { by = TOP + 1; bvy = fabsf_(bvy); }
-  if (by > SCREEN_H - 2) { by = SCREEN_H - 2; bvy = -fabsf_(bvy); }
+  if (by < TOP + 1) { by = TOP + 1; bvy = fabsf_(bvy); sfx(SFX_BOUNCE, 1.3f); }
+  if (by > SCREEN_H - 2) { by = SCREEN_H - 2; bvy = -fabsf_(bvy); sfx(SFX_BOUNCE, 1.3f); }
 
   // Paddle bounces speed the ball up; hit offset steers it.
   if (bvx < 0 && bx <= PLAYER_X + 3 && bx >= PLAYER_X &&
@@ -108,17 +110,20 @@ void update(float dt) {
     bx = PLAYER_X + 3;
     bvx = -bvx * 1.06f;
     bvy = clampf(bvy + (by - playerY) * 4.0f, -70.0f, 70.0f);
+    sfx(SFX_BOUNCE);
   }
   if (bvx > 0 && bx >= AI_X - 1 && bx <= AI_X + 2 &&
       fabsf_(by - aiY) <= PAD_H / 2 + 1) {
     bx = AI_X - 1;
     bvx = -bvx * 1.06f;
     bvy = clampf(bvy + (by - aiY) * 4.0f, -70.0f, 70.0f);
+    sfx(SFX_BOUNCE, 0.85f);
   }
   bvx = clampf(bvx, -110.0f, 110.0f);
 
   if (bx > SCREEN_W + 2) {
     playerScore++;
+    sfx(SFX_COIN);
     serve(-1);
   } else if (bx < -2) {
     aiScore++;
@@ -126,7 +131,9 @@ void update(float dt) {
       gameOver = true;
       overTime = 0;
       scoreRank = submitScore(playerScore);
+      sfx(SFX_LOSE);
     } else {
+      sfx(SFX_HURT);
       serve(1);
     }
   }

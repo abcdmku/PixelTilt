@@ -107,6 +107,8 @@ void loadLevel(int n) {
 }
 
 void init() {
+  setSfxStyle(STYLE_SOFT);
+  music(MUS_CHILL);
   totalTime = 0;
   scoreRank = -1;
   loadLevel(0);
@@ -159,7 +161,7 @@ void update(float dt) {
     rect(6, 22, 52, 20, GREEN);
     textCentered(25, "LEVEL", WHITE);
     textCentered(31, "CLEAR!", GREEN);
-    if (input.justDown(BTN_CLICK)) loadLevel(level + 1);
+    if (input.justDown(BTN_CLICK)) { sfx(SFX_SELECT); loadLevel(level + 1); }
     return;
   }
   if (state == ALL_DONE) {
@@ -196,21 +198,24 @@ void update(float dt) {
 
   // Per-axis movement with wall collision (kills velocity on impact axis).
   float nx = px + vx * dt;
-  if (hitsWall(nx, py)) vx = -vx * 0.25f; else px = nx;
+  if (hitsWall(nx, py)) { if (fabsf_(vx) > 24.0f) sfx(SFX_BOUNCE, 1.2f); vx = -vx * 0.25f; } else px = nx;
   float ny = py + vy * dt;
-  if (hitsWall(px, ny)) vy = -vy * 0.25f; else py = ny;
+  if (hitsWall(px, ny)) { if (fabsf_(vy) > 24.0f) sfx(SFX_BOUNCE, 1.2f); vy = -vy * 0.25f; } else py = ny;
 
   // Holes and goal trigger from the cell under the ball center.
   char under = cellAt(floori(px / CELL), floori(py / CELL));
   if (under == 'O') {
+    sfx(SFX_HURT);
     deathFlash = 0.4f;
     resetBall();
   } else if (under == 'G') {
     if (level + 1 >= LEVEL_COUNT) {
       state = ALL_DONE;
+      sfx(SFX_WIN);
       scoreRank = submitScore((int)(totalTime * 10.0f));  // deciseconds
     } else {
       state = LEVEL_DONE;
+      sfx(SFX_POWERUP);
     }
   }
 

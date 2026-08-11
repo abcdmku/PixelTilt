@@ -15,6 +15,7 @@
 #include <SparkFun_BNO08x_Arduino_Library.h>
 #endif
 #include "pca9557.h"
+#include "audio_out.h"
 #include "pixeltilt/engine.h"
 #include "pixeltilt/gfx.h"
 #include "pixeltilt/input.h"
@@ -300,6 +301,10 @@ void setup() {
     Serial.println("WARN: PCA9557 key expander not responding");
   }
 
+  if (audioSetup()) {
+    Serial.println("[pixeltilt] ES8311 audio online");
+  }
+
   imuOk = setupImu();
   if (imuOk) {
 #if !IMU_USE_UART_RVC
@@ -347,10 +352,11 @@ void loop() {
   static uint32_t lastBeat = 0;
   if (millis() - lastBeat >= 2000) {
     lastBeat = millis();
-    Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s tilt=%.2f,%.2f game=%d",
+    Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s audio=%s tilt=%.2f,%.2f game=%d",
                   (unsigned long)(millis() / 1000), (unsigned long)frameCount,
                   keysOk ? "ok" : "MISSING", keys.readInputs(),
-                  imuOk ? "ok" : "absent", tiltX, tiltY, pt::currentGame());
+                  imuOk ? "ok" : "absent", audioOk() ? "ok" : "off",
+                  tiltX, tiltY, pt::currentGame());
 #if IMU_USE_UART_RVC
     // rvc=<good>/<badsum> bytes=<raw rx> age=<ms since last good frame>
     Serial.printf(" rvc=%lu/%lu bytes=%lu age=%lu rst=%lu idle=%d%%",

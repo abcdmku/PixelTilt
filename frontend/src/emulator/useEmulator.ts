@@ -8,6 +8,14 @@ import {
   SCREEN_H,
   SCREEN_W,
 } from "./wasm";
+import {
+  audioUnlocked,
+  installAudioUnlock,
+  playPatch,
+  setMusicVolume,
+  setSfxVolume,
+} from "../audio/engine";
+import { setMusicTrack, stopMusic } from "../audio/music";
 
 // Keyboard contract (mirrors the hardware):
 //   Arrow keys  -> tilt (the BNO08x on the device)
@@ -53,6 +61,11 @@ export interface EmulatorState {
   paused: boolean;
   tilt: { x: number; y: number };
   buttons: number;
+  /** False until the browser's autoplay gate is lifted by a click/keypress. */
+  audioOn: boolean;
+  /** Device settings volumes, percent (set inside the emulated settings menu). */
+  sfxVolume: number;
+  musicVolume: number;
 }
 
 export interface EmulatorControls {
@@ -76,6 +89,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const [paused, setPausedState] = useState(false);
   const [tiltUi, setTiltUi] = useState({ x: 0, y: 0 });
   const [buttonsUi, setButtonsUi] = useState(0);
+  const [audioOn, setAudioOn] = useState(false);
+  const [volumesUi, setVolumesUi] = useState({ sfx: 80, music: 60 });
 
   const emu = useRef<Emulator | null>(null);
   const keys = useRef<Set<string>>(new Set());
@@ -83,6 +98,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const padTilt = useRef<{ x: number; y: number } | null>(null);
   const tilt = useRef({ x: 0, y: 0 });
   const pausedRef = useRef(false);
+  const sfxSerial = useRef(0);
+  const musicSerial = useRef(0);
   const canvases = useRef<{ main: HTMLCanvasElement | null; glow: HTMLCanvasElement | null }>({
     main: null,
     glow: null,
@@ -131,6 +148,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
     window.addEventListener("blur", onBlur);
+    installAudioUnlock();
 
     let last = performance.now();
     let fpsAccum = 0;
@@ -160,6 +178,19 @@ export function useEmulator(): EmulatorState & EmulatorControls {
 
       if (!pausedRef.current) {
         m.tick(dt, tilt.current.x, tilt.current.y, buttons);
+      }
+
+      // Audio: drain the core's SFX ring every frame (latency matters), keep
+      // the bus volumes in sync with the device settings, and follow the
+      // engine's music-track requests.
+      const drained = m.drainSfx(sfxSerial.current);
+      sfxSerial.current = drained.head;
+      for (const p of drained.patches) playPatch(p);
+      setSfxVolume(m.sfxVolume());
+      setMusicVolume(m.musicVolume());
+      if (m.musicSerial() !== musicSerial.current) {
+        musicSerial.current = m.musicSerial();
+        setMusicTrack(m.musicTrack());
       }
 
       // Blit framebuffer -> offscreen 64x64 -> scaled canvases. Brightness is
@@ -203,6 +234,12 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         setCurrentGame(m.currentGame());
         setTiltUi({ x: tilt.current.x, y: tilt.current.y });
         setButtonsUi(buttons);
+        setAudioOn(audioUnlocked());
+        setVolumesUi((v) => {
+          const sfx = m.sfxVolume();
+          const music = m.musicVolume();
+          return v.sfx === sfx && v.music === music ? v : { sfx, music };
+        });
         if (fpsAccum > 0) setFps(Math.round(fpsFrames / fpsAccum));
         fpsAccum = 0;
         fpsFrames = 0;
@@ -227,6 +264,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      stopMusic();
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", onBlur);
@@ -242,6 +280,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     paused,
     tilt: tiltUi,
     buttons: buttonsUi,
+    audioOn,
+    sfxVolume: volumesUi.sfx,
+    musicVolume: volumesUi.music,
     registerCanvases: (main, glow) => {
       canvases.current = { main, glow };
     },
@@ -252,6 +293,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       if (!m) return;
       m.init(Date.now() & 0xffffffff);
       restoreSave(m); // reset restarts the engine, not the player's save
+      sfxSerial.current = 0; // core serials restarted with the engine
+      musicSerial.current = 0;
+      stopMusic();
     },
     setPaused: (p) => {
       pausedRef.current = p;

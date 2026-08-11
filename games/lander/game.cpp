@@ -55,6 +55,8 @@ void startApproach() {
 }
 
 void init() {
+  setSfxStyle(STYLE_SOFT);
+  music(MUS_CHILL);
   level = 0;
   scoreRank = -1;
   fuel = 100;
@@ -119,6 +121,7 @@ void update(float dt) {
     draw();
     if (stateTime > 1.2f) {
       level++;
+      sfx(SFX_COIN);
       fuel = 100;
       genTerrain();
       startApproach();
@@ -126,9 +129,11 @@ void update(float dt) {
     return;
   }
   if (state == CRASHED) {
+    bool shown = stateTime > 0.5f;
     stateTime += dt;
     thrusting = false;
     draw();
+    if (!shown && stateTime > 0.5f) sfx(SFX_LOSE);
     if (stateTime > 0.8f && input.justDown(BTN_CLICK)) init();
     return;
   }
@@ -137,7 +142,9 @@ void update(float dt) {
   thrusting = input.held(BTN_UP) && fuel > 0;
   if (thrusting) {
     vy -= 58.0f * dt;
+    bool low = fuel <= 30;
     fuel = fmaxf_(0, fuel - 14.0f * dt);
+    if (!low && fuel <= 30) sfx(SFX_ALARM);
   }
   vx += input.tiltX * 42.0f * dt;
   vy += gravity * dt;
@@ -160,8 +167,10 @@ void update(float dt) {
     if (onPad && soft) {
       state = LANDED;
       sy = (float)ground[padX] - 2;
+      sfx(SFX_WIN);
     } else {
       state = CRASHED;
+      sfx(SFX_EXPLODE);
       scoreRank = submitScore(level);
     }
   }

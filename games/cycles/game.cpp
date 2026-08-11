@@ -47,6 +47,8 @@ void startRound() {
 }
 
 void init() {
+  setSfxStyle(STYLE_GRIT);
+  music(MUS_TENSE);
   score = 0;
   roundNum = 1;
   scoreRank = -1;
@@ -76,6 +78,7 @@ void aiDecide() {
 }
 
 void step() {
+  if (qdx != pdx || qdy != pdy) sfx(SFX_BLIP);
   pdx = qdx; pdy = qdy;
   aiDecide();
 
@@ -92,10 +95,13 @@ void step() {
     state = OVER;
     stateT = 0;
     scoreRank = submitScore(score);
+    sfx(SFX_EXPLODE);
+    sfx(SFX_LOSE);
   } else if (aDead) {
     score++;
     state = ROUNDWON;
     stateT = 0;
+    sfx(SFX_COIN);
   }
 }
 
@@ -138,7 +144,7 @@ void update(float dt) {
   stateT += dt;
 
   if (state == COUNTDOWN) {
-    if (stateT >= 0.8f) state = RUNNING;
+    if (stateT >= 0.8f) { state = RUNNING; sfx(SFX_SELECT); }
     draw();
     return;
   }

@@ -43,6 +43,8 @@ void newColumn() {
 }
 
 void init() {
+  setSfxStyle(STYLE_GRIT);
+  music(MUS_ACTION);
   gapHalf = 14;
   for (int x = 0; x < SCREEN_W; x++) {
     center[x] = (TOP + SCREEN_H) / 2;
@@ -106,7 +108,8 @@ void update(float dt) {
   while (scrollAcc >= 1.0f) {
     scrollAcc -= 1.0f;
     colCount++;
-    if (colCount % 90 == 0) gapHalf = maxi(gapHalf - 1, 5);
+    if (colCount % 90 == 0 && gapHalf > 5) { gapHalf--; sfx(SFX_ALARM); }
+    if (colCount % 250 == 0) sfx(SFX_COIN);
     newColumn();
   }
   score = colCount / 5;
@@ -120,6 +123,8 @@ void update(float dt) {
     gameOver = true;
     overTime = 0;
     scoreRank = submitScore(score);
+    sfx(SFX_EXPLODE);
+    sfx(SFX_LOSE);
   }
 
   draw();

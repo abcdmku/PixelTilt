@@ -36,6 +36,8 @@ void drawNumber(int x, int y, int n, Color c) {
 int randGapY() { return randRange(TOP + 3 + gapH / 2, SCREEN_H - 4 - gapH / 2); }
 
 void init() {
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_CHILL);
   birdY = 32;
   vy = 0;
   gapH = 22;
@@ -100,6 +102,7 @@ void die() {
   gameOver = true;
   overTime = 0;
   scoreRank = submitScore(score);
+  sfx(SFX_EXPLODE);
 }
 
 void update(float dt) {
@@ -117,11 +120,12 @@ void update(float dt) {
     if (flapPressed()) {
       started = true;
       vy = -50;
+      sfx(SFX_JUMP);
     }
     return;
   }
 
-  if (flapPressed()) vy = -50;
+  if (flapPressed()) { vy = -50; sfx(SFX_JUMP); }
   vy += 140.0f * dt;
   birdY += vy * dt;
 
@@ -141,6 +145,7 @@ void update(float dt) {
     if (!p.passed && p.x + PIPE_W < BIRD_X) {
       p.passed = true;
       score++;
+      sfx(SFX_COIN, 1.0f + (score % 10) * 0.03f);
     }
     if (BIRD_X + 3 > p.x && BIRD_X < p.x + PIPE_W) {
       if (birdY - 1 < p.gapY - gapH / 2 || birdY + 1 > p.gapY + gapH / 2) {

@@ -43,6 +43,8 @@ void startTower() {
 }
 
 void init() {
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_TENSE);
   curW = 5;
   speed = 22;
   score = 0;
@@ -104,6 +106,7 @@ void update(float dt) {
 
   if (input.justDown(BTN_CLICK)) {
     int l = floori(posX + 0.5f);
+    bool trimmed = false;
     if (row > 0) {
       int pl = rowL[row - 1], pr = pl + rowW[row - 1];
       int nl = maxi(l, pl), nr = mini(l + curW, pr);
@@ -111,15 +114,19 @@ void update(float dt) {
         gameOver = true;
         overTime = 0;
         scoreRank = submitScore(score);
+        sfx(SFX_LOSE);
         draw();
         return;
       }
+      trimmed = nr - nl < curW;
       l = nl;
       curW = nr - nl;
     }
     rowL[row] = (uint8_t)l;
     rowW[row] = (uint8_t)curW;
     score++;
+    if (trimmed) sfx(SFX_HURT);
+    else sfx(row > 0 ? SFX_POWERUP : SFX_BOUNCE, 1.0f + row * 0.04f);
     speed += 2.5f;
     row++;
     if (row >= NROWS) {
@@ -127,6 +134,7 @@ void update(float dt) {
       score += 5;
       speed = 22.0f + round_ * 8.0f;
       flashT = 0.8f;
+      sfx(SFX_WIN);
       startTower();
     }
     posX = dir > 0 ? 0 : (float)(NCOLS - curW);

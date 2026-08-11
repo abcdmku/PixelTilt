@@ -11,7 +11,7 @@ namespace {
 // games being added, removed or reordered in the menu.
 constexpr int MAX_SAVE_GAMES = 16;
 constexpr uint32_t SAVE_MAGIC = 0x50545356u;  // "PTSV"
-constexpr uint16_t SAVE_VERSION = 3;
+constexpr uint16_t SAVE_VERSION = 4;  // v4: Settings grew sfxVolume/musicVolume
 
 struct GameSlot {
   uint32_t idHash;
@@ -70,6 +70,8 @@ void storageInit() {
   save.cfg.tiltRotation = 0;
   save.cfg.tiltFlip = 0;
   save.cfg.brightness = 100;
+  save.cfg.sfxVolume = 80;
+  save.cfg.musicVolume = 60;
   for (int i = 0; i < MAX_SAVE_GAMES; i++) clearSlot(save.games[i]);
   dirty = false;
   applySettings();
@@ -122,6 +124,10 @@ bool saveBlobLoad() {
   save.cfg.tiltRotation &= 3;
   save.cfg.tiltFlip &= 1;
   if (save.cfg.brightness < 20 || save.cfg.brightness > 100) save.cfg.brightness = 100;
+  if (save.cfg.sfxVolume > 100) save.cfg.sfxVolume = 80;
+  if (save.cfg.musicVolume > 100) save.cfg.musicVolume = 60;
+  save.cfg.sfxVolume -= save.cfg.sfxVolume % 20;    // snap to the menu's steps
+  save.cfg.musicVolume -= save.cfg.musicVolume % 20;
   applySettings();
   dirty = false;
   return true;

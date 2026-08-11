@@ -35,6 +35,8 @@ void resetBall() {
 }
 
 void init() {
+  setSfxStyle(STYLE_ARCADE);
+  music(MUS_ACTION);
   paddleX = SCREEN_W / 2.0f;
   lives = 3;
   score = 0;
@@ -51,6 +53,7 @@ float ballSpeed() { return 42.0f + wave * 6.0f + score * 0.15f; }
 
 void launch() {
   stuck = false;
+  sfx(SFX_SELECT);
   // Launch angle biased by current tilt so the player has some control.
   float a = -PI / 2.0f + input.tiltX * 0.7f;
   bvx = cosf_(a) * ballSpeed();
@@ -122,9 +125,9 @@ void update(float dt) {
   by += bvy * dt;
 
   // Walls.
-  if (bx < 1)             { bx = 1; bvx = fabsf_(bvx); }
-  if (bx > SCREEN_W - 1)  { bx = SCREEN_W - 1; bvx = -fabsf_(bvx); }
-  if (by < 8)             { by = 8; bvy = fabsf_(bvy); }
+  if (bx < 1)             { bx = 1; bvx = fabsf_(bvx); sfx(SFX_BOUNCE, 1.2f); }
+  if (bx > SCREEN_W - 1)  { bx = SCREEN_W - 1; bvx = -fabsf_(bvx); sfx(SFX_BOUNCE, 1.2f); }
+  if (by < 8)             { by = 8; bvy = fabsf_(bvy); sfx(SFX_BOUNCE, 1.2f); }
 
   // Paddle: bounce angle depends on where the ball hits.
   if (bvy > 0 && by >= PADDLE_Y - 1 && by <= PADDLE_Y + 2 &&
@@ -135,6 +138,7 @@ void update(float dt) {
     bvx = cosf_(a) * sp;
     bvy = sinf_(a) * sp;
     by = PADDLE_Y - 1;
+    sfx(SFX_BOUNCE);
   }
 
   // Bricks.
@@ -147,6 +151,7 @@ void update(float dt) {
       bricks[r][c] = false;
       bricksLeft--;
       score += 5 + (ROWS - 1 - r);
+      sfx(SFX_COIN, 1.0f + (ROWS - 1 - r) * 0.1f);
       // Reflect on the axis of shallower penetration.
       float cx = c * BRICK_W + BRICK_W / 2.0f;
       float cy = BRICK_TOP + r * (BRICK_H + 1) + BRICK_H / 2.0f;
@@ -156,6 +161,7 @@ void update(float dt) {
       if (bricksLeft == 0) {
         wave++;
         score += 50;
+        sfx(SFX_POWERUP);
         resetBricks();
         resetBall();
       }
@@ -168,7 +174,11 @@ void update(float dt) {
     if (lives <= 0) {
       gameOver = true;
       scoreRank = submitScore(score);
-    } else resetBall();
+      sfx(SFX_LOSE);
+    } else {
+      sfx(SFX_HURT);
+      resetBall();
+    }
   }
 
   draw();

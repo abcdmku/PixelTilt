@@ -46,6 +46,8 @@ void resetFrog() {
 }
 
 void init() {
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_ACTION);
   for (int i = 0; i < NLANES; i++) laneOff[i] = randf() * WRAP;
   speedMul = 1.0f;
   lives = 3;
@@ -129,6 +131,7 @@ void update(float dt) {
   }
 
   int hop = readHop();
+  if (hop >= 0) sfx(SFX_JUMP);
   if (hop == 0) frogRow = maxi(frogRow - 1, 0);
   else if (hop == 2) frogRow = mini(frogRow + 1, START_ROW);
   else if (hop == 1) frogCol = mini(frogCol + 1, NCOLS - 1);
@@ -137,10 +140,12 @@ void update(float dt) {
   if (frogRow < bestRow) {
     bestRow = frogRow;
     score++;
+    sfx(SFX_COIN, 1.0f + (START_ROW - bestRow) * 0.05f);
   }
   if (frogRow == 0) {
     score += 10;
     speedMul *= 1.12f;
+    sfx(SFX_POWERUP);
     resetFrog();
   }
 
@@ -157,7 +162,9 @@ void update(float dt) {
           gameOver = true;
           overTime = 0;
           scoreRank = submitScore(score);
+          sfx(SFX_LOSE);
         } else {
+          sfx(SFX_HURT);
           resetFrog();
         }
         break;

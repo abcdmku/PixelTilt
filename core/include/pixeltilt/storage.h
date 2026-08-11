@@ -22,6 +22,8 @@ struct Settings {
                          // tiltRotation this reaches all 8 mountings of the
                          // IMU (rotated and/or flipped) without a reflash.
   uint8_t brightness;    // percent, 20..100 in steps of 20
+  uint8_t sfxVolume;     // percent, 0..100 in steps of 20 (0 = mute)
+  uint8_t musicVolume;   // percent, 0..100 in steps of 20 (0 = mute)
 };
 
 // Reset everything to defaults (called from engineInit).

@@ -6,6 +6,7 @@
 #include "pixeltilt/game.h"
 #include "pixeltilt/ptmath.h"
 #include "pixeltilt/storage.h"
+#include "pixeltilt/audio.h"
 
 #define WASM_EXPORT(name) __attribute__((export_name(#name))) extern "C"
 
@@ -41,6 +42,30 @@ WASM_EXPORT(pt_save_clear_dirty) void pt_save_clear_dirty() { pt::clearSaveDirty
 
 // Display brightness in percent; the host applies it (panel PWM / canvas).
 WASM_EXPORT(pt_brightness) int pt_brightness() { return pt::settings().brightness; }
+
+// --- audio (see audio.h) ----------------------------------------------------
+// SFX are drained from a ring of SfxEvent{u32 serial, SfxPatch} — the JS side
+// mirrors the struct layout in frontend/src/audio/patch.ts. Music is a track
+// id the host maps to actual audio; volumes are user settings the host applies
+// to its output buses.
+WASM_EXPORT(pt_sfx_ring_ptr) const pt::SfxEvent* pt_sfx_ring_ptr() { return pt::sfxRing(); }
+WASM_EXPORT(pt_sfx_ring_cap) int pt_sfx_ring_cap() { return pt::SFX_RING_CAP; }
+WASM_EXPORT(pt_sfx_head) unsigned pt_sfx_head() { return pt::sfxHead(); }
+WASM_EXPORT(pt_music_track) int pt_music_track() { return pt::musicTrack(); }
+WASM_EXPORT(pt_music_serial) unsigned pt_music_serial() { return pt::musicSerial(); }
+WASM_EXPORT(pt_sfx_volume) int pt_sfx_volume() { return pt::settings().sfxVolume; }
+WASM_EXPORT(pt_music_volume) int pt_music_volume() { return pt::settings().musicVolume; }
+
+// SFX library access for tooling (the Audio Lab patch browser).
+WASM_EXPORT(pt_sfx_count) int pt_sfx_count() { return pt::SFX_COUNT; }
+WASM_EXPORT(pt_sfx_style_count) int pt_sfx_style_count() { return pt::STYLE_COUNT; }
+WASM_EXPORT(pt_sfx_patch) const pt::SfxPatch* pt_sfx_patch(int style, int id) {
+  return &pt::sfxPatch((pt::SfxStyle)style, (pt::SfxId)id);
+}
+WASM_EXPORT(pt_sfx_name) const char* pt_sfx_name(int id) { return pt::sfxName((pt::SfxId)id); }
+WASM_EXPORT(pt_sfx_style_name) const char* pt_sfx_style_name(int s) {
+  return pt::sfxStyleName((pt::SfxStyle)s);
+}
 
 // ---------------------------------------------------------------------------
 // Freestanding runtime: clang may lower loops/aggregate copies to these.

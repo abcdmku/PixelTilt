@@ -39,6 +39,8 @@ void placeFood() {
 }
 
 void init() {
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_ACTION);
   length = 3;
   for (int i = 0; i < length; i++) body[i] = {(int8_t)(7 - i), 7};
   dirX = nextX = 1;
@@ -129,6 +131,8 @@ void update(float dt) {
       gameOver = true;
       overTime = 0;
       scoreRank = submitScore(score);
+      sfx(SFX_EXPLODE);
+      sfx(SFX_LOSE);
       draw();
       return;
     }
@@ -139,6 +143,8 @@ void update(float dt) {
 
     if (ate) {
       score++;
+      if (score % 10 == 0) sfx(SFX_POWERUP);
+      else sfx(SFX_COIN, 1.0f + (length % 8) * 0.06f);
       stepInterval = fmaxf_(0.08f, stepInterval - 0.004f);
       placeFood();
     }

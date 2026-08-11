@@ -523,10 +523,376 @@ kbd {
   color: var(--ink-faint);
 }
 
+/* ---------- header nav ---------- */
+
+.bench-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.bench-nav a {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-decoration: none;
+  color: var(--ink-dim);
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 14px 5px;
+  transition: all 0.1s ease;
+}
+
+.bench-nav a:hover {
+  color: var(--ink);
+  border-color: var(--line-bright);
+}
+
+.bench-nav a.active {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.bench-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--ink-dim);
+}
+
+/* ---------- audio module (bench) ---------- */
+
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.volume-label {
+  width: 30px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--ink-dim);
+}
+
+.volume-cells {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+}
+
+.volume-cell {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--panel-pcb);
+  border: 1px solid var(--line);
+}
+
+.volume-cell.lit {
+  background: var(--amber);
+  border-color: var(--amber-dim);
+  box-shadow: 0 0 6px rgba(255, 176, 0, 0.4);
+}
+
+.volume-value {
+  width: 34px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+/* ---------- audio lab ---------- */
+
+.lab-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+  animation: rise 0.5s ease-out both;
+}
+
+.lab-blurb {
+  font-size: 10px;
+  letter-spacing: 1px;
+  line-height: 1.7;
+  color: var(--ink-dim);
+  margin-bottom: 14px;
+}
+
+.lab-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  border: 1px dashed var(--line-bright);
+  border-radius: 8px;
+  background: var(--panel-pcb);
+  color: var(--ink-dim);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-align: center;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.lab-drop:hover {
+  border-color: var(--amber-dim);
+  color: var(--ink);
+}
+
+.lab-drop input {
+  display: none;
+}
+
+.lab-error {
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--red);
+}
+
+.lab-note {
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--green);
+}
+
+.lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  margin: 16px 0;
+}
+
+.lab-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lab-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--ink-faint);
+}
+
+.lab-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lab-seg button {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink-dim);
+  background: var(--panel-pcb);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.08s ease;
+}
+
+.lab-seg button:hover {
+  color: var(--ink);
+  border-color: var(--line-bright);
+}
+
+.lab-seg button.on {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.lab-wave {
+  width: 100%;
+  height: 110px;
+  background: #030405;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.lab-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.lab-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel-pcb);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.lab-stat-value {
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  color: var(--amber);
+}
+
+.lab-stat-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--ink-faint);
+}
+
+.lab-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.lab-actions button,
+.lab-primary {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  background: var(--bg-raise);
+  border: 1px solid var(--line-bright);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  padding: 8px 14px 6px;
+  cursor: pointer;
+  transition: all 0.08s ease;
+}
+
+.lab-actions button:hover:not(:disabled),
+.lab-primary:hover:not(:disabled) {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+.lab-actions button:active:not(:disabled),
+.lab-primary:active:not(:disabled) {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+
+.lab-actions button:disabled,
+.lab-primary:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lab-actions button.on {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.lab-assign {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-assign-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lab-styles {
+  margin-bottom: 10px;
+}
+
+.sfx-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.sfx-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-align: left;
+  color: var(--ink-dim);
+  background: var(--panel-pcb);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 9px;
+  cursor: pointer;
+  transition: all 0.08s ease;
+}
+
+.sfx-chip:hover {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+.sfx-chip.on {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track-row .sfx-chip {
+  flex: 1;
+}
+
+.track-kind {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--ink-faint);
+  min-width: 44px;
+  text-align: right;
+}
+
+.track-clear {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--amber);
+  background: rgba(255, 176, 0, 0.08);
+  border: 1px solid var(--amber-dim);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  min-width: 44px;
+}
+
+.track-clear:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: rgba(244, 81, 78, 0.08);
+}
+
 /* ---------- small screens ---------- */
 
 @media (max-width: 900px) {
-  .bench-main {
+  .bench-main,
+  .lab-main {
     grid-template-columns: 1fr;
   }
 

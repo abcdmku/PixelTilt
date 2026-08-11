@@ -102,9 +102,19 @@ compiler install.
 
 Holding the wheel press in a game opens the pause menu: **resume**, **settings**
 or **main menu**. The main menu also has **SCORES** (top-3 table per game) and
-**SETTINGS** — screen rotation in 90° steps, brightness, and a high-score
-reset. Settings and scores persist across power cycles: NVS flash on the
-device, localStorage in the emulator.
+**SETTINGS** — screen rotation in 90° steps, brightness, SFX and music
+volume, and a high-score reset. Settings and scores persist across power
+cycles: NVS flash on the device, localStorage in the emulator.
+
+The emulator plays the games' sound effects and background music through Web
+Audio (press any key/click once to satisfy the browser's autoplay gate). The
+**AUDIO LAB** page (top-right nav) has two extras: a browser for the core's
+programmatic SFX banks, and an **MP3 → PTA converter** — PTA is the project's
+tiny mono ADPCM format (pick sample rate and codec, preview the result, see
+the output size, download the file or assign it as a background-music track).
+Assigning affects the browser; to put a song on the device, save the
+downloaded file as `assets/music/<track>.pta` (menu/chill/action/tense) and
+reflash — the firmware build embeds it (see `assets/music/README.md`).
 
 ## Flash the device
 
@@ -172,6 +182,13 @@ The API (see [`core/include/pixeltilt/`](core/include/pixeltilt)):
   deterministic RNG (`randRange`, `randf`). Games use these instead of
   `<math.h>` so the exact same code compiles freestanding for WASM and for
   the ESP32.
+- **`audio.h`** — `sfx(SFX_COIN)` fires a one-shot from the game's sound bank
+  (12 events × 4 style banks: `STYLE_ARCADE/CHIP/SOFT/GRIT`, picked with
+  `setSfxStyle()` in `init()`); an optional second arg pitches the sound
+  (`sfx(SFX_COIN, 1.5f)`). `music(MUS_CHILL/ACTION/TENSE)` requests
+  background music by mood. The core only records these as data events —
+  each platform host renders them (Web Audio in the emulator; the ESP32
+  driver can consume the same ring buffer when the board's codec is wired).
 - **`storage.h`** — call `submitScore(value)` when a run ends and the engine
   keeps a persistent top-3 for the game (returns 0 for a new best — nice for
   a "NEW BEST!" flash). Points are the default; register with

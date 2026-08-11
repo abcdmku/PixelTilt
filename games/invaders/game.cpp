@@ -49,6 +49,8 @@ void resetWave() {
 }
 
 void init() {
+  setSfxStyle(STYLE_ARCADE);
+  music(MUS_TENSE);
   score = 0;
   wave = 0;
   lives = 3;
@@ -122,6 +124,7 @@ void update(float dt) {
     bulletLive = true;
     bx = cannonX;
     by = 55;
+    sfx(SFX_LASER);
   }
   if (bulletLive) {
     by -= 90.0f * dt;
@@ -134,6 +137,7 @@ void update(float dt) {
     fleetDir = -fleetDir;
     fleetY += 3;
     fleetSpeed *= 1.1f;
+    if (fleetY >= 30) sfx(SFX_ALARM);
   }
 
   if (bulletLive) {
@@ -147,6 +151,7 @@ void update(float dt) {
           score += (ROWS - r) * 10;
           fleetSpeed += 1.5f;
           bulletLive = false;
+          sfx(SFX_COIN, 1.0f + (ROWS - 1 - r) * 0.15f);
           r = -1;  // break both loops
           break;
         }
@@ -155,6 +160,7 @@ void update(float dt) {
   if (aliveCount == 0) {
     wave++;
     score += 50;
+    sfx(SFX_POWERUP);
     resetWave();
   }
 
@@ -167,6 +173,7 @@ void update(float dt) {
     gameOver = true;
     overTime = 0;
     scoreRank = submitScore(score);
+    sfx(SFX_LOSE);
     draw();
     return;
   }
@@ -199,10 +206,12 @@ void update(float dt) {
       bombs[i].live = false;
       lives--;
       hitFlash = 0.5f;
+      sfx(SFX_EXPLODE);
       if (lives <= 0) {
         gameOver = true;
         overTime = 0;
         scoreRank = submitScore(score);
+        sfx(SFX_LOSE);
       }
     }
   }

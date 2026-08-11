@@ -4,6 +4,7 @@
 #include "pixeltilt/game.h"
 #include "pixeltilt/ptmath.h"
 #include "pixeltilt/storage.h"
+#include "pixeltilt/audio.h"
 
 namespace pt {
 
@@ -23,6 +24,7 @@ int   menuCursor = 0;
 int   menuScroll = 0;
 int   pauseCursor = 0;
 int   settingsCursor = 0;
+int   settingsScroll = 0;
 bool  confirmReset = false;   // RESET SCORES armed, next click wipes
 float resetFlash = 0.0f;      // "CLEARED" feedback timer
 int   scoresCursor = 0;
@@ -76,12 +78,14 @@ void enterPause() {
   clickHold = 0.0f;
   dimFramebuffer();
   pauseBackdrop = true;
+  sfx(STYLE_CHIP, SFX_BLIP, 0.6f);
 }
 
 void enterSettings(State from) {
   state = ST_SETTINGS;
   settingsFrom = from;
   settingsCursor = 0;
+  settingsScroll = 0;
   confirmReset = false;
   resetFlash = 0.0f;
 }
@@ -139,16 +143,21 @@ void drawMenu() {
 void tickMenu(float dt) {
   menuTime += dt;
   int rows = menuRowCount();
-  if (input.justDown(BTN_UP))   menuCursor = (menuCursor + rows - 1) % rows;
-  if (input.justDown(BTN_DOWN)) menuCursor = (menuCursor + 1) % rows;
+  if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
+    int d = input.justDown(BTN_UP) ? rows - 1 : 1;
+    menuCursor = (menuCursor + d) % rows;
+    sfx(STYLE_CHIP, SFX_BLIP);
+  }
   if (input.justDown(BTN_CLICK)) {
     if (menuCursor < GAME_COUNT) {
       if (GAME_COUNT > 0) launchGame(menuCursor);
     } else if (menuCursor == GAME_COUNT) {
       state = ST_SCORES;
       scoresCursor = 0;
+      sfx(STYLE_CHIP, SFX_SELECT);
     } else {
       enterSettings(ST_MENU);
+      sfx(STYLE_CHIP, SFX_SELECT);
     }
   }
   drawMenu();
@@ -180,9 +189,13 @@ void tickPause() {
   constexpr int ITEMS = 3;
   const char* labels[ITEMS] = {"RESUME", "SETTINGS", "MAIN MENU"};
 
-  if (input.justDown(BTN_UP))   pauseCursor = (pauseCursor + ITEMS - 1) % ITEMS;
-  if (input.justDown(BTN_DOWN)) pauseCursor = (pauseCursor + 1) % ITEMS;
+  if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
+    int d = input.justDown(BTN_UP) ? ITEMS - 1 : 1;
+    pauseCursor = (pauseCursor + d) % ITEMS;
+    sfx(STYLE_CHIP, SFX_BLIP);
+  }
   if (input.justDown(BTN_CLICK)) {
+    sfx(STYLE_CHIP, SFX_SELECT);
     switch (pauseCursor) {
       case 0: state = ST_GAME; clickHold = 0.0f; return;
       case 1: enterSettings(ST_PAUSE); return;
@@ -209,45 +222,69 @@ void tickPause() {
 
 // --- settings ---------------------------------------------------------------
 
+// Volume rows step 0..100 by 20, wrapping back to mute.
+uint8_t cycleVolume(uint8_t v) {
+  return v >= 100 ? 0 : (uint8_t)(v + 20);
+}
+
 void tickSettings(float dt) {
-  constexpr int ITEMS = 6;  // SCREEN, TILT, FLIP, BRIGHT, RESET SCORES, BACK
+  // SCREEN, TILT, FLIP, BRIGHT, SFX, MUSIC, RESET SCORES, BACK
+  constexpr int ITEMS = 8;
+  constexpr int VISIBLE = 6;  // rows that fit between the title and footer
   if (resetFlash > 0) resetFlash -= dt;
 
   if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
     confirmReset = false;
     int d = input.justDown(BTN_UP) ? ITEMS - 1 : 1;
     settingsCursor = (settingsCursor + d) % ITEMS;
+    sfx(STYLE_CHIP, SFX_BLIP);
   }
   if (input.justDown(BTN_CLICK)) {
     switch (settingsCursor) {
       case 0:
         settings().rotation = (settings().rotation + 1) & 3;
         settingsChanged();
+        sfx(STYLE_CHIP, SFX_SELECT);
         break;
       case 1:
         settings().tiltRotation = (settings().tiltRotation + 1) & 3;
         settingsChanged();
+        sfx(STYLE_CHIP, SFX_SELECT);
         break;
       case 2:
         settings().tiltFlip ^= 1;
         settingsChanged();
+        sfx(STYLE_CHIP, SFX_SELECT);
         break;
       case 3:
         settings().brightness = settings().brightness >= 100
                                     ? 20
                                     : (uint8_t)(settings().brightness + 20);
         settingsChanged();
+        sfx(STYLE_CHIP, SFX_SELECT);
         break;
       case 4:
+        settings().sfxVolume = cycleVolume(settings().sfxVolume);
+        settingsChanged();
+        sfx(STYLE_CHIP, SFX_COIN);  // audition the new level right away
+        break;
+      case 5:
+        settings().musicVolume = cycleVolume(settings().musicVolume);
+        settingsChanged();  // host adjusts the music bus live
+        break;
+      case 6:
         if (!confirmReset) {
           confirmReset = true;
+          sfx(STYLE_CHIP, SFX_ALARM);
         } else {
           resetAllScores();
           confirmReset = false;
           resetFlash = 1.2f;
+          sfx(STYLE_CHIP, SFX_POWERUP);
         }
         break;
-      case 5:
+      case 7:
+        sfx(STYLE_CHIP, SFX_SELECT);
         if (settingsFrom == ST_PAUSE) {
           state = ST_PAUSE;
           pauseBackdrop = false;
@@ -258,13 +295,19 @@ void tickSettings(float dt) {
     }
   }
 
+  if (settingsCursor < settingsScroll) settingsScroll = settingsCursor;
+  if (settingsCursor >= settingsScroll + VISIBLE)
+    settingsScroll = settingsCursor - VISIBLE + 1;
+
   clear();
   textCentered(3, "SETTINGS", ORANGE);
   hline(2, 10, SCREEN_W - 4, DARKGRAY);
 
   char buf[12];
-  for (int i = 0; i < ITEMS; i++) {
-    int y = 14 + i * 7;
+  for (int row = 0; row < VISIBLE; row++) {
+    int i = settingsScroll + row;
+    if (i >= ITEMS) break;
+    int y = 14 + row * 7;
     bool sel = i == settingsCursor;
     if (sel) {
       fillRect(1, y - 1, SCREEN_W - 2, 7, rgb(24, 24, 48));
@@ -293,11 +336,21 @@ void tickSettings(float dt) {
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
       case 4:
+        text(8, y, "SFX", c);
+        intToStr(settings().sfxVolume, buf);
+        text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
+        break;
+      case 5:
+        text(8, y, "MUSIC", c);
+        intToStr(settings().musicVolume, buf);
+        text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
+        break;
+      case 6:
         if (resetFlash > 0)       text(8, y, "CLEARED!", GREEN);
         else if (confirmReset)    text(8, y, "SURE?", RED);
         else                      text(8, y, "RESET SCORES", c);
         break;
-      case 5:
+      case 7:
         text(8, y, "BACK", c);
         break;
     }
@@ -309,12 +362,14 @@ void tickSettings(float dt) {
 // --- scores -----------------------------------------------------------------
 
 void tickScores() {
-  if (GAME_COUNT > 0) {
-    if (input.justDown(BTN_UP))   scoresCursor = (scoresCursor + GAME_COUNT - 1) % GAME_COUNT;
-    if (input.justDown(BTN_DOWN)) scoresCursor = (scoresCursor + 1) % GAME_COUNT;
+  if (GAME_COUNT > 0 && (input.justDown(BTN_UP) || input.justDown(BTN_DOWN))) {
+    int d = input.justDown(BTN_UP) ? GAME_COUNT - 1 : 1;
+    scoresCursor = (scoresCursor + d) % GAME_COUNT;
+    sfx(STYLE_CHIP, SFX_BLIP);
   }
   if (input.justDown(BTN_CLICK)) {
     state = ST_MENU;
+    sfx(STYLE_CHIP, SFX_SELECT);
     return;
   }
 
@@ -357,6 +412,8 @@ void engineInit() {
   prevButtons = 0;
   srand_(0x50495854u);  // "PIXT" — hosts may reseed with entropy at startup
   storageInit();
+  audioReset();
+  music(MUS_MENU);
   clear();
 }
 
@@ -366,6 +423,10 @@ void launchGame(int index) {
   runningGame = index;
   menuCursor = index;
   clickHold = 0.0f;
+  // Games opt into their own bank/track from init(); these are the defaults.
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_NONE);
+  sfx(STYLE_CHIP, SFX_SELECT);
   GAME_LIST[index]->init();
 }
 
@@ -373,6 +434,8 @@ void exitToMenu() {
   state = ST_MENU;
   runningGame = -1;
   clickHold = 0.0f;
+  setSfxStyle(STYLE_CHIP);
+  music(MUS_MENU);
 }
 
 int currentGame() { return runningGame; }

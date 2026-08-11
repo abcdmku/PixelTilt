@@ -1,6 +1,7 @@
 // Thin typed wrapper around the freestanding pixeltilt.wasm module built by
 // tools/build-wasm.mjs. No JS glue is generated — the exports are stable C
 // symbols and the framebuffer is read directly out of linear memory.
+import { EVENT_SIZE, readPatch, SfxPatch } from "../audio/patch";
 
 export const SCREEN_W = 64;
 export const SCREEN_H = 64;
@@ -27,6 +28,26 @@ interface Exports {
   pt_save_dirty(): number;
   pt_save_clear_dirty(): void;
   pt_brightness(): number;
+  pt_sfx_ring_ptr(): number;
+  pt_sfx_ring_cap(): number;
+  pt_sfx_head(): number;
+  pt_music_track(): number;
+  pt_music_serial(): number;
+  pt_sfx_volume(): number;
+  pt_music_volume(): number;
+  pt_sfx_count(): number;
+  pt_sfx_style_count(): number;
+  pt_sfx_patch(style: number, id: number): number;
+  pt_sfx_name(id: number): number;
+  pt_sfx_style_name(s: number): number;
+}
+
+export interface SfxLibrary {
+  /** Style-bank names, index = pt::SfxStyle. */
+  styles: string[];
+  /** Event names, index = pt::SfxId. */
+  names: string[];
+  patch(style: number, id: number): SfxPatch;
 }
 
 export interface Emulator {
@@ -46,6 +67,17 @@ export interface Emulator {
   clearSaveDirty(): void;
   /** Display brightness setting in percent (host applies it). */
   brightness(): number;
+  /** SFX events with serial > since, oldest first; play them and keep head. */
+  drainSfx(since: number): { head: number; patches: SfxPatch[] };
+  /** Requested background-music track id (pt::MusicTrack). */
+  musicTrack(): number;
+  /** Bumps whenever the requested track changes. */
+  musicSerial(): number;
+  /** User volume settings, percent 0..100 (host applies to its buses). */
+  sfxVolume(): number;
+  musicVolume(): number;
+  /** The core's built-in parametric SFX patch banks. */
+  sfxLibrary: SfxLibrary;
 }
 
 function cString(mem: WebAssembly.Memory, ptr: number): string {
@@ -80,6 +112,19 @@ export async function loadEmulator(): Promise<Emulator> {
   const fbPtr = e.pt_framebuffer();
   const savePtr = e.pt_save_ptr();
   const saveSize = e.pt_save_size();
+
+  const ringPtr = e.pt_sfx_ring_ptr();
+  const ringCap = e.pt_sfx_ring_cap();
+  const sfxLibrary: SfxLibrary = {
+    styles: Array.from({ length: e.pt_sfx_style_count() }, (_, s) =>
+      cString(e.memory, e.pt_sfx_style_name(s)),
+    ),
+    names: Array.from({ length: e.pt_sfx_count() }, (_, i) =>
+      cString(e.memory, e.pt_sfx_name(i)),
+    ),
+    patch: (style, id) => readPatch(e.memory.buffer, e.pt_sfx_patch(style, id)),
+  };
+
   return {
     titles,
     init: (seed) => e.pt_init(seed >>> 0),
@@ -97,5 +142,25 @@ export async function loadEmulator(): Promise<Emulator> {
     saveDirty: () => e.pt_save_dirty() !== 0,
     clearSaveDirty: () => e.pt_save_clear_dirty(),
     brightness: () => e.pt_brightness(),
+    drainSfx: (since) => {
+      const head = e.pt_sfx_head();
+      const patches: SfxPatch[] = [];
+      if (head > since) {
+        // Ring slots hold the last ringCap events; anything older was lost
+        // (only possible if the host stalls for many sounds — fine to drop).
+        const first = Math.max(since + 1, head - ringCap + 1);
+        for (let serial = first; serial <= head; serial++) {
+          const base = ringPtr + ((serial - 1) % ringCap) * EVENT_SIZE;
+          const slotSerial = new Uint32Array(e.memory.buffer, base, 1)[0];
+          if (slotSerial === serial) patches.push(readPatch(e.memory.buffer, base + 4));
+        }
+      }
+      return { head, patches };
+    },
+    musicTrack: () => e.pt_music_track(),
+    musicSerial: () => e.pt_music_serial(),
+    sfxVolume: () => e.pt_sfx_volume(),
+    musicVolume: () => e.pt_music_volume(),
+    sfxLibrary,
   };
 }

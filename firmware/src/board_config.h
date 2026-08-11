@@ -39,6 +39,30 @@
 #define I2C_SCL_PIN 2
 #define I2C_FREQ_HZ 400000
 
+// --- Audio (onboard ES8311 codec + NS4150 speaker amp) ---------------------
+// The board carries an ES8311 low-power codec (playback DAC, I2C control at
+// 0x18 — the shared bus above) fed over I2S, with an NS4150 class-D amp on
+// the speaker header gated by a GPIO. There's also an ES7210 mic ADC on
+// SDOUT/IO47 that the firmware doesn't use. Pins per Seengreat's wiki.
+// Set AUDIO_ENABLED to 0 to compile the firmware silent.
+#define AUDIO_ENABLED 1
+#define ES8311_ADDR   0x18
+#define I2S_MCLK_PIN  38
+#define I2S_BCLK_PIN  48
+#define I2S_LRCK_PIN  21
+#define I2S_DOUT_PIN  14  // ESP32 out -> ES8311 DSDIN
+#define NS4150_EN_PIN 3   // high = speaker amp on
+#define AUDIO_SAMPLE_RATE 22050
+// Codec DAC level in dB (0 = neutral; the register is 0.5 dB/step so percent
+// mappings are meaningless). Leave at 0 and shape loudness in software.
+#define ES8311_DAC_DB 0
+// Overall software output scale. The NS4150 + speaker are loud; with 0.20 the
+// full SFX/MUSIC settings dial (0..100) spans ~1-20% absolute amplitude.
+#define AUDIO_MASTER_GAIN 0.20f
+// The chiptune tables are authored ~-6 dB low (core/src/audio.cpp); the music
+// path runs at 2x to compensate, leaving headroom for embedded PTA songs.
+#define AUDIO_MUSIC_SCALE 2.0f
+
 // --- Thumb wheel (via PCA9557 I2C expander, active-low) --------------------
 // The board's only user input is a 3-way thumb wheel: roll up, roll down,
 // press in. K1/K2/K3 sit on PCA9557 IOs (K1->IO1, K2->IO3, K3->IO2 — yes,

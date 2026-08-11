@@ -36,6 +36,8 @@ void drawNumber(int x, int y, int n, Color c) {
 }
 
 void init() {
+  setSfxStyle(STYLE_SOFT);
+  music(MUS_NONE);
   seqLen = 1;
   seq[0] = (uint8_t)randRange(0, 3);
   completed = 0;
@@ -44,6 +46,7 @@ void init() {
   showIdx = 0;
   timer = 0;
   tiltArmed = false;
+  sfx(SFX_BLIP, 0.75f + 0.25f * seq[0]);
 }
 
 float stepTime() { return fmaxf_(0.22f, 0.5f - seqLen * 0.02f); }
@@ -108,6 +111,8 @@ void update(float dt) {
           state = INPUT;
           inputIdx = 0;
           tiltArmed = false;
+        } else {
+          sfx(SFX_BLIP, 0.75f + 0.25f * seq[showIdx]);
         }
       }
       break;
@@ -116,10 +121,12 @@ void update(float dt) {
       int d = readDir();
       if (d >= 0) {
         if (d == (int)seq[inputIdx]) {
+          sfx(SFX_BLIP, 0.75f + 0.25f * d);
           flashDir = d;
           state = FLASH;
           timer = 0;
         } else {
+          sfx(SFX_LOSE);
           state = OVER;
           timer = 0;
           scoreRank = submitScore(completed);
@@ -140,6 +147,7 @@ void update(float dt) {
             seqLen++;
           }
           state = ADVANCE;
+          sfx(SFX_POWERUP);
         } else {
           state = INPUT;
         }
@@ -151,6 +159,7 @@ void update(float dt) {
         timer = 0;
         showIdx = 0;
         state = SHOW;
+        sfx(SFX_BLIP, 0.75f + 0.25f * seq[0]);
       }
       break;
     case OVER:

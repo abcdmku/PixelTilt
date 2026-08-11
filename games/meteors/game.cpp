@@ -42,6 +42,8 @@ void spawnMet(Met& m, float extraLift) {
 }
 
 void init() {
+  setSfxStyle(STYLE_GRIT);
+  music(MUS_TENSE);
   shipX = SCREEN_W / 2.0f;
   difficulty = 0;
   score = 0;
@@ -92,8 +94,10 @@ void draw() {
 
 void update(float dt) {
   if (gameOver) {
+    bool shown = overTime > 0.5f;
     overTime += dt;
     draw();
+    if (!shown && overTime > 0.5f) sfx(SFX_LOSE);
     if (overTime > 0.5f && input.justDown(BTN_CLICK)) init();
     return;
   }
@@ -114,12 +118,15 @@ void update(float dt) {
     m.y += m.vy * dt;
     if (m.y - m.r > SCREEN_H) {
       score++;
+      sfx(SFX_COIN, 1.6f - m.r * 0.2f);
+      if (score % 25 == 0) sfx(SFX_POWERUP);
       spawnMet(m, 0);
       continue;
     }
     if (fabsf_(m.x - shipX) < m.r + 2.5f && fabsf_(m.y - SHIP_Y) < m.r + 2.0f) {
       gameOver = true;
       overTime = 0;
+      sfx(SFX_EXPLODE);
       scoreRank = submitScore(score);
     }
   }

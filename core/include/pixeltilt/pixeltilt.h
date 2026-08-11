@@ -5,3 +5,4 @@
 #include "pixeltilt/ptmath.h"
 #include "pixeltilt/game.h"
 #include "pixeltilt/storage.h"
+#include "pixeltilt/audio.h"
