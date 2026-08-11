@@ -3,14 +3,34 @@
 #include "pixeltilt/game.h"
 
 extern const pt::Game pt_game_breakout;
+extern const pt::Game pt_game_cycles;
+extern const pt::Game pt_game_flappy;
+extern const pt::Game pt_game_hopper;
+extern const pt::Game pt_game_invaders;
+extern const pt::Game pt_game_lander;
+extern const pt::Game pt_game_meteors;
+extern const pt::Game pt_game_pong;
+extern const pt::Game pt_game_simon;
 extern const pt::Game pt_game_snake;
+extern const pt::Game pt_game_stacker;
 extern const pt::Game pt_game_tilt_maze;
+extern const pt::Game pt_game_tunnel;
 
 namespace pt {
 const Game* const GAME_LIST[] = {
     &pt_game_breakout,
+    &pt_game_cycles,
+    &pt_game_flappy,
+    &pt_game_hopper,
+    &pt_game_invaders,
+    &pt_game_lander,
+    &pt_game_meteors,
+    &pt_game_pong,
+    &pt_game_simon,
     &pt_game_snake,
+    &pt_game_stacker,
     &pt_game_tilt_maze,
+    &pt_game_tunnel,
 };
-const int GAME_COUNT = 3;
+const int GAME_COUNT = 13;
 }  // namespace pt
