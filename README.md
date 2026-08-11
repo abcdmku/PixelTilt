@@ -26,12 +26,14 @@ the real hardware.
 
 ### Wiring
 
-1. **Panel** → the board has two HUB75 connectors wired in parallel to the
-   same GPIOs, so either works: the pin header on the **back** plugs the
-   board straight onto the panel's input socket (the easy, cable-free way),
-   or the top-edge box header takes a ribbon cable. If one seems dead,
-   re-seat it and check the ribbon orientation. Panel power to the VH-4P
-   5 V terminal (max 5 V/4 A).
+1. **Panel** → the board's two HUB75 connectors (top box header for a
+   ribbon, back pin header for direct plug-in) are the *same* port wired in
+   parallel — "dual HUB75" in the listings means these two, not two
+   channels. **Use the ribbon into the top header.** The direct plug-in
+   header only lines up on panels with the matching connector geometry
+   (Seengreat/WatangTech's own); on other 64×64 panels it lands on the OUT
+   socket or misaligned, and the board body can block the power hookup.
+   Panel power to the VH-4P 5 V terminal (max 5 V/4 A).
 2. **IMU** → the 4-pin 1 mm I2C header: `SDA→GPIO1`, `SCL→GPIO2`, 3V3, GND.
    The BNO08x sits at address 0x4A or 0x4B — both are probed, and neither
    conflicts with the onboard peripherals on that shared bus.
