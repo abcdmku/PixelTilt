@@ -26,10 +26,12 @@ the real hardware.
 
 ### Wiring
 
-1. **Panel** → the board's HUB75 header with the included ribbon cable —
-   note it's the connector on the **back** of the board, not the one on the
-   top edge (an easy mix-up; the top one won't drive the panel). Panel power
-   to the VH-4P 5 V terminal (max 5 V/4 A).
+1. **Panel** → the board has two HUB75 connectors wired in parallel to the
+   same GPIOs, so either works: the pin header on the **back** plugs the
+   board straight onto the panel's input socket (the easy, cable-free way),
+   or the top-edge box header takes a ribbon cable. If one seems dead,
+   re-seat it and check the ribbon orientation. Panel power to the VH-4P
+   5 V terminal (max 5 V/4 A).
 2. **IMU** → the 4-pin 1 mm I2C header: `SDA→GPIO1`, `SCL→GPIO2`, 3V3, GND.
    The BNO08x sits at address 0x4A or 0x4B — both are probed, and neither
    conflicts with the onboard peripherals on that shared bus.
