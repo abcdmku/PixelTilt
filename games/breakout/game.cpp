@@ -17,6 +17,7 @@ float paddleX;              // center
 float bx, by, bvx, bvy;     // ball
 bool  stuck;                // ball riding the paddle, waiting for launch
 int   lives, score, wave;
+int   scoreRank;  // high-score table rank for this run, -1 if none
 bool  gameOver, winFlash;
 float flashTime;
 
@@ -37,6 +38,7 @@ void init() {
   paddleX = SCREEN_W / 2.0f;
   lives = 3;
   score = 0;
+  scoreRank = -1;
   wave = 0;
   gameOver = false;
   winFlash = false;
@@ -88,6 +90,7 @@ void draw() {
     rect(8, 24, 48, 18, RED);
     textCentered(27, "GAME OVER", WHITE);
     textCentered(35, "CLICK-RETRY", GRAY);
+    if (scoreRank == 0) textCentered(46, "NEW BEST!", YELLOW);
   } else if (stuck) {
     textCentered(44, "CLICK!", hsv(flashTime * 200.0f, 0.6f, 1.0f));
   }
@@ -162,8 +165,10 @@ void update(float dt) {
   // Bottom: lose a life.
   if (by > SCREEN_H + 2) {
     lives--;
-    if (lives <= 0) { gameOver = true; }
-    else resetBall();
+    if (lives <= 0) {
+      gameOver = true;
+      scoreRank = submitScore(score);
+    } else resetBall();
   }
 
   draw();

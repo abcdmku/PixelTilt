@@ -22,6 +22,28 @@ const BUTTON_KEYS: Record<string, number> = {
 const TILT_ATTACK = 6.5; // how fast held arrows ramp tilt (per second-ish)
 const TILT_RELEASE = 9.0;
 
+// Settings + high scores persist in localStorage, mirroring the device's NVS.
+const SAVE_KEY = "pixeltilt.save";
+
+function restoreSave(m: Emulator) {
+  try {
+    const b64 = localStorage.getItem(SAVE_KEY);
+    if (b64) m.loadSave(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+  } catch {
+    // ignore corrupt saves / storage being unavailable
+  }
+}
+
+function persistSave(m: Emulator) {
+  if (!m.saveDirty()) return;
+  try {
+    localStorage.setItem(SAVE_KEY, btoa(String.fromCharCode(...m.saveBlob())));
+    m.clearSaveDirty();
+  } catch {
+    m.clearSaveDirty();
+  }
+}
+
 export interface EmulatorState {
   ready: boolean;
   error: string | null;
@@ -140,13 +162,15 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         m.tick(dt, tilt.current.x, tilt.current.y, buttons);
       }
 
-      // Blit framebuffer -> offscreen 64x64 -> scaled canvases.
+      // Blit framebuffer -> offscreen 64x64 -> scaled canvases. Brightness is
+      // applied here, like the panel PWM on the device.
       const fb = m.framebuffer();
       const px = image.data;
+      const br = m.brightness() / 100;
       for (let i = 0, j = 0; i < fb.length; i += 3, j += 4) {
-        px[j] = fb[i];
-        px[j + 1] = fb[i + 1];
-        px[j + 2] = fb[i + 2];
+        px[j] = fb[i] * br;
+        px[j + 1] = fb[i + 1] * br;
+        px[j + 2] = fb[i + 2] * br;
         px[j + 3] = 255;
       }
       offCtx.putImageData(image, 0, 0);
@@ -175,6 +199,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       uiSync += dt;
       if (uiSync > 0.1) {
         uiSync = 0;
+        persistSave(m);
         setCurrentGame(m.currentGame());
         setTiltUi({ x: tilt.current.x, y: tilt.current.y });
         setButtonsUi(buttons);
@@ -191,6 +216,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         if (cancelled) return;
         emu.current = m;
         m.init(Date.now() & 0xffffffff);
+        restoreSave(m);
         setTitles(m.titles);
         setReady(true);
         last = performance.now();
@@ -221,7 +247,12 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     },
     launch: (i) => emu.current?.launch(i),
     exitToMenu: () => emu.current?.exitToMenu(),
-    reset: () => emu.current?.init(Date.now() & 0xffffffff),
+    reset: () => {
+      const m = emu.current;
+      if (!m) return;
+      m.init(Date.now() & 0xffffffff);
+      restoreSave(m); // reset restarts the engine, not the player's save
+    },
     setPaused: (p) => {
       pausedRef.current = p;
       setPausedState(p);

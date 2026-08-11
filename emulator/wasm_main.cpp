@@ -5,6 +5,7 @@
 #include "pixeltilt/gfx.h"
 #include "pixeltilt/game.h"
 #include "pixeltilt/ptmath.h"
+#include "pixeltilt/storage.h"
 
 #define WASM_EXPORT(name) __attribute__((export_name(#name))) extern "C"
 
@@ -28,6 +29,18 @@ WASM_EXPORT(pt_game_title) const char* pt_game_title(int i) {
 WASM_EXPORT(pt_current_game) int pt_current_game() { return pt::currentGame(); }
 WASM_EXPORT(pt_launch) void pt_launch(int i) { pt::launchGame(i); }
 WASM_EXPORT(pt_exit_to_menu) void pt_exit_to_menu() { pt::exitToMenu(); }
+
+// Save-blob persistence (see storage.h): JS copies localStorage bytes over
+// pt_save_ptr then calls pt_save_loaded; when pt_save_dirty it reads the blob
+// back out and persists it.
+WASM_EXPORT(pt_save_ptr) unsigned char* pt_save_ptr() { return pt::saveBlob(); }
+WASM_EXPORT(pt_save_size) int pt_save_size() { return pt::saveBlobSize(); }
+WASM_EXPORT(pt_save_loaded) int pt_save_loaded() { return pt::saveBlobLoad() ? 1 : 0; }
+WASM_EXPORT(pt_save_dirty) int pt_save_dirty() { return pt::saveDirty() ? 1 : 0; }
+WASM_EXPORT(pt_save_clear_dirty) void pt_save_clear_dirty() { pt::clearSaveDirty(); }
+
+// Display brightness in percent; the host applies it (panel PWM / canvas).
+WASM_EXPORT(pt_brightness) int pt_brightness() { return pt::settings().brightness; }
 
 // ---------------------------------------------------------------------------
 // Freestanding runtime: clang may lower loops/aggregate copies to these.

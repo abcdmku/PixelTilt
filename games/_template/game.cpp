@@ -16,9 +16,15 @@
 //                   freestanding so it builds for both WASM and ESP32).
 //   * No heap, no statics with constructors — keep state in plain globals in
 //     the anonymous namespace and reset everything in init().
+//   * High scores: when a run ends, call pt::submitScore(value) — the engine
+//     keeps a persistent top-3 per game (browsable from the menu's SCORES
+//     screen). It returns the rank (0 = new best) or -1. Points are the
+//     default; register with PT_GAME_SCORED(..., pt::SCORE_TIME) for
+//     lower-is-better times in deciseconds, or pt::SCORE_LEVEL for levels.
 //
-// The engine exits back to the menu when the player holds UP+DOWN — you don't
-// need to handle that.
+// The engine owns pausing: holding CLICK ~0.7s opens the pause menu (resume /
+// settings / main menu) — you don't need to handle that, but avoid gameplay
+// that requires holding CLICK.
 #include "pixeltilt/pixeltilt.h"
 
 using namespace pt;

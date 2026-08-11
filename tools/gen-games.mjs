@@ -16,7 +16,7 @@ export function generate() {
     const src = join(gamesDir, name.name, "game.cpp");
     if (!existsSync(src)) continue;
     const code = readFileSync(src, "utf8");
-    const m = code.match(/PT_GAME\s*\(\s*([A-Za-z0-9_]+)\s*,/);
+    const m = code.match(/PT_GAME(?:_SCORED)?\s*\(\s*([A-Za-z0-9_]+)\s*,/);
     if (!m) {
       console.warn(`warning: ${name.name}/game.cpp has no PT_GAME(...) — skipped`);
       continue;

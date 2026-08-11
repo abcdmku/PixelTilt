@@ -63,7 +63,13 @@ compiler install.
 | --- | --- |
 | Tilt (BNO08x gravity) | Arrow keys, or drag the tilt pad |
 | Wheel up / click / down | `A` / `S` / `D` (Enter also clicks) |
-| Exit game to menu | hold `A`+`D` (device: hold wheel up+down ~1 s) |
+| Pause menu (in game) | hold `S` (device: hold wheel press ~0.7 s) |
+
+Holding the wheel press in a game opens the pause menu: **resume**, **settings**
+or **main menu**. The main menu also has **SCORES** (top-3 table per game) and
+**SETTINGS** — screen rotation in 90° steps, brightness, and a high-score
+reset. Settings and scores persist across power cycles: NVS flash on the
+device, localStorage in the emulator.
 
 ## Flash the device
 
@@ -131,10 +137,16 @@ The API (see [`core/include/pixeltilt/`](core/include/pixeltilt)):
   deterministic RNG (`randRange`, `randf`). Games use these instead of
   `<math.h>` so the exact same code compiles freestanding for WASM and for
   the ESP32.
+- **`storage.h`** — call `submitScore(value)` when a run ends and the engine
+  keeps a persistent top-3 for the game (returns 0 for a new best — nice for
+  a "NEW BEST!" flash). Points are the default; register with
+  `PT_GAME_SCORED(..., pt::SCORE_TIME)` for lower-is-better times in
+  deciseconds, or `pt::SCORE_LEVEL` for highest-level-reached.
 
 Rules of the road: no heap, no static constructors, keep state in plain
-globals and reset it in `init()`. The engine owns the menu and the
-hold-UP+DOWN exit combo — games never need to handle either.
+globals and reset it in `init()`. The engine owns the menu and the hold-CLICK
+pause menu — games never need to handle either (just avoid gameplay that
+requires holding the wheel press).
 
 Ships with three examples: **Tilt Maze** (roll to the goal, avoid holes),
 **Snake** (dominant tilt axis steers), **Breakout** (tilt = paddle position).

@@ -32,6 +32,11 @@ constexpr Color DARKGRAY = {40, 40, 40};
 // memory every animation frame.
 extern uint8_t framebuffer[SCREEN_W * SCREEN_H * 3];
 
+// Screen rotation in quarter turns (0..3), applied inside pixel()/getPixel()
+// so games and hosts stay rotation-oblivious. Set from the settings screen.
+void setRotation(int quarterTurns);
+int  rotation();
+
 void clear(Color c = BLACK);
 void pixel(int x, int y, Color c);
 Color getPixel(int x, int y);

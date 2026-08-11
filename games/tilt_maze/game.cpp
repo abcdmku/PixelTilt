@@ -73,6 +73,7 @@ enum State { PLAYING, LEVEL_DONE, ALL_DONE };
 
 State state;
 int level;
+int scoreRank;          // high-score table rank for this run, -1 if none
 float px, py, vx, vy;   // ball position/velocity in pixels
 float levelTime, totalTime;
 float deathFlash;
@@ -107,6 +108,7 @@ void loadLevel(int n) {
 
 void init() {
   totalTime = 0;
+  scoreRank = -1;
   loadLevel(0);
 }
 
@@ -174,6 +176,7 @@ void update(float dt) {
     buf[i] = 0;
     textCentered(28, "TIME", GRAY);
     textCentered(36, buf, WHITE);
+    if (scoreRank == 0) textCentered(44, "NEW BEST!", YELLOW);
     textCentered(52, "CLICK - RETRY", DARKGRAY);
     if (input.justDown(BTN_CLICK)) init();
     return;
@@ -203,8 +206,12 @@ void update(float dt) {
     deathFlash = 0.4f;
     resetBall();
   } else if (under == 'G') {
-    if (level + 1 >= LEVEL_COUNT) state = ALL_DONE;
-    else state = LEVEL_DONE;
+    if (level + 1 >= LEVEL_COUNT) {
+      state = ALL_DONE;
+      scoreRank = submitScore((int)(totalTime * 10.0f));  // deciseconds
+    } else {
+      state = LEVEL_DONE;
+    }
   }
 
   draw();
@@ -212,4 +219,4 @@ void update(float dt) {
 
 }  // namespace
 
-PT_GAME(tilt_maze, "TILT MAZE", init, update)
+PT_GAME_SCORED(tilt_maze, "TILT MAZE", init, update, pt::SCORE_TIME)

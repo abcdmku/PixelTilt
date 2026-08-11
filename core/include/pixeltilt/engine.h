@@ -1,14 +1,16 @@
 #pragma once
 #include <stdint.h>
 
-// The engine owns the menu <-> game state machine and per-frame input edge
-// detection. Both platform hosts (firmware main loop, WASM shim) drive it the
-// same way each frame:
+// The engine owns the menu <-> game <-> pause state machine and per-frame
+// input edge detection. Both platform hosts (firmware main loop, WASM shim)
+// drive it the same way each frame:
 //
 //   pt::engineTick(tiltX, tiltY, rawButtons, dt);
 //   ...then present pt::framebuffer however the platform does.
 //
-// Holding UP + DOWN together for ~1s exits the running game back to the menu.
+// Holding CLICK for ~0.7s in a game opens the pause menu (resume / settings /
+// main menu). The main menu also has SCORES and SETTINGS entries; settings and
+// high scores persist via the storage.h save-blob hooks.
 
 namespace pt {
 

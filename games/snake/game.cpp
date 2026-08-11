@@ -19,7 +19,8 @@ int  length;
 int  dirX, dirY;      // current heading
 int  nextX, nextY;    // queued heading (applied on step)
 Cell food;
-int  score, best;
+int  score;
+int  scoreRank;  // rank in the high-score table this run earned, -1 if none
 float stepTimer, stepInterval;
 bool gameOver;
 float overTime;
@@ -43,6 +44,7 @@ void init() {
   dirX = nextX = 1;
   dirY = nextY = 0;
   score = 0;
+  scoreRank = -1;
   stepInterval = 0.20f;
   stepTimer = 0;
   gameOver = false;
@@ -88,6 +90,7 @@ void draw() {
     rect(8, 24, 48, 18, RED);
     textCentered(27, "GAME OVER", WHITE);
     textCentered(35, "CLICK-RETRY", GRAY);
+    if (scoreRank == 0) textCentered(46, "NEW BEST!", YELLOW);
   }
 }
 
@@ -125,7 +128,7 @@ void update(float dt) {
         onSnake(hx, hy, ate ? 0 : 1)) {
       gameOver = true;
       overTime = 0;
-      if (score > best) best = score;
+      scoreRank = submitScore(score);
       draw();
       return;
     }

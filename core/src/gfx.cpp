@@ -5,6 +5,28 @@ namespace pt {
 
 uint8_t framebuffer[SCREEN_W * SCREEN_H * 3];
 
+namespace {
+
+int rot = 0;
+
+// Logical -> physical framebuffer index, rotated by quarter turns. The screen
+// is square, so every rotation is lossless.
+inline int fbIndex(int x, int y) {
+  int px, py;
+  switch (rot) {
+    default: px = x;                py = y;                break;
+    case 1:  px = SCREEN_W - 1 - y; py = x;                break;
+    case 2:  px = SCREEN_W - 1 - x; py = SCREEN_H - 1 - y; break;
+    case 3:  px = y;                py = SCREEN_H - 1 - x; break;
+  }
+  return (py * SCREEN_W + px) * 3;
+}
+
+}  // namespace
+
+void setRotation(int quarterTurns) { rot = quarterTurns & 3; }
+int  rotation() { return rot; }
+
 Color hsv(float h, float s, float v) {
   h = fmodf_(h, 360.0f);
   if (h < 0) h += 360.0f;
@@ -33,7 +55,7 @@ void clear(Color c) {
 
 void pixel(int x, int y, Color c) {
   if ((unsigned)x >= (unsigned)SCREEN_W || (unsigned)y >= (unsigned)SCREEN_H) return;
-  int i = (y * SCREEN_W + x) * 3;
+  int i = fbIndex(x, y);
   framebuffer[i + 0] = c.r;
   framebuffer[i + 1] = c.g;
   framebuffer[i + 2] = c.b;
@@ -41,7 +63,7 @@ void pixel(int x, int y, Color c) {
 
 Color getPixel(int x, int y) {
   if ((unsigned)x >= (unsigned)SCREEN_W || (unsigned)y >= (unsigned)SCREEN_H) return BLACK;
-  int i = (y * SCREEN_W + x) * 3;
+  int i = fbIndex(x, y);
   return {framebuffer[i], framebuffer[i + 1], framebuffer[i + 2]};
 }
 

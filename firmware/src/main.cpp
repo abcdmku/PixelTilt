@@ -6,6 +6,7 @@
 // with the browser emulator.
 #include <Arduino.h>
 #include <Wire.h>
+#include <Preferences.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <SparkFun_BNO08x_Arduino_Library.h>
 
@@ -15,13 +16,17 @@
 #include "pixeltilt/gfx.h"
 #include "pixeltilt/input.h"
 #include "pixeltilt/ptmath.h"
+#include "pixeltilt/storage.h"
 
 static MatrixPanel_I2S_DMA* panel = nullptr;
 static PCA9557 keys;
 static BNO08x imu;
+static Preferences prefs;
 static bool imuOk = false;
 static bool keysOk = false;
 static uint32_t frameCount = 0;
+static uint8_t lastBrightness = 0;
+static uint32_t dirtySince = 0;  // millis of the first unsaved change, 0 = clean
 
 // Raw gravity from the IMU (m/s^2) and the boot-time "flat" reference that
 // gets subtracted so the game zero matches however the device sits at boot.
@@ -119,6 +124,35 @@ static void readTilt(float& tiltX, float& tiltY) {
   tiltY = pt::clampf(TILT_Y_SIGN * y, -1.0f, 1.0f);
 }
 
+// Brightness setting (percent) scales the board's PWM ceiling.
+static void applyBrightness() {
+  uint8_t pct = pt::settings().brightness;
+  if (pct == lastBrightness) return;
+  lastBrightness = pct;
+  panel->setBrightness8((uint8_t)((PANEL_BRIGHTNESS * pct) / 100));
+}
+
+// Settings + high scores live in NVS as one opaque blob (see storage.h).
+static void loadSave() {
+  prefs.begin("pixeltilt", false);
+  if (prefs.getBytesLength("save") == (size_t)pt::saveBlobSize() &&
+      prefs.getBytes("save", pt::saveBlob(), pt::saveBlobSize()) &&
+      pt::saveBlobLoad()) {
+    Serial.println("[pixeltilt] save restored from NVS");
+  }
+}
+
+// Debounced flash write: settings screens raise the dirty flag on every
+// click, so wait for a quiet second before committing.
+static void persistSave() {
+  if (pt::saveDirty() && dirtySince == 0) dirtySince = millis();
+  if (dirtySince != 0 && millis() - dirtySince >= 1000) {
+    prefs.putBytes("save", pt::saveBlob(), pt::saveBlobSize());
+    pt::clearSaveDirty();
+    dirtySince = 0;
+  }
+}
+
 static uint8_t readButtons() {
   uint8_t raw = keys.readInputs();  // active low
   uint8_t b = 0;
@@ -163,6 +197,8 @@ void setup() {
 
   pt::srand_(esp_random());
   pt::engineInit();
+  loadSave();
+  applyBrightness();
   calibrateZero();
   lastMicros = micros();
 }
@@ -177,6 +213,8 @@ void loop() {
   readTilt(tiltX, tiltY);
 
   pt::engineTick(tiltX, tiltY, readButtons(), dt);
+  applyBrightness();
+  persistSave();
   blit();
   frameCount++;
 

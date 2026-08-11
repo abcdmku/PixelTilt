@@ -1,6 +1,7 @@
 // Instantiates the built wasm in Node and exercises the engine: menu render,
-// navigation, launching every game, ticking each with input, and the
-// UP+DOWN exit combo. Run `npm run wasm` first (npm test does both).
+// navigation, launching every game, ticking each with input, the hold-CLICK
+// pause menu, settings, and save persistence. Run `npm run wasm` first
+// (npm test does both).
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,10 +60,37 @@ for (let g = 0; g < count; g++) {
   check(`"${titles[g]}" runs 300 frames and draws`, fbLitPixels() > 20);
 }
 
-// Holding UP+DOWN for >1s exits to the menu.
+// Holding CLICK ~0.7s pauses; the pause menu's third item is MAIN MENU.
 e.pt_launch(0);
-for (let f = 0; f < 80; f++) tick(0, 0, BTN_UP | BTN_DOWN);
-check("UP+DOWN hold exits to menu", e.pt_current_game() === -1);
+for (let f = 0; f < 50; f++) tick(0, 0, BTN_CLICK);
+check("hold CLICK pauses without exiting", e.pt_current_game() === 0);
+tick(); // release the held click
+tick(0, 0, BTN_DOWN); tick();
+tick(0, 0, BTN_DOWN); tick();
+tick(0, 0, BTN_CLICK);
+check("pause > MAIN MENU exits to menu", e.pt_current_game() === -1);
+tick();
+
+// The menu row above the first game (wrap via UP) is SETTINGS. Clicking the
+// first two items cycles rotation and brightness.
+tick(0, 0, BTN_UP); tick();
+tick(0, 0, BTN_CLICK); tick();          // enter settings
+tick(0, 0, BTN_CLICK); tick();          // ROTATE -> 90
+check("changing a setting marks the save dirty", e.pt_save_dirty() === 1);
+check("menu still draws when rotated", fbLitPixels() > 50);
+tick(0, 0, BTN_DOWN); tick();
+tick(0, 0, BTN_CLICK); tick();          // BRIGHT 100 -> 20
+check("brightness cycles", e.pt_brightness() === 20);
+
+// Save blob round-trip: snapshot, wipe via re-init, restore.
+e.pt_save_clear_dirty();
+const saveSize = e.pt_save_size();
+const blob = new Uint8Array(saveSize);
+blob.set(new Uint8Array(e.memory.buffer, e.pt_save_ptr(), saveSize));
+e.pt_init(99);
+check("re-init resets settings", e.pt_brightness() === 100);
+new Uint8Array(e.memory.buffer, e.pt_save_ptr(), saveSize).set(blob);
+check("save blob restores settings", e.pt_save_loaded() === 1 && e.pt_brightness() === 20);
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

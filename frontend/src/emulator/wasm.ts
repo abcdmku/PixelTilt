@@ -21,6 +21,12 @@ interface Exports {
   pt_current_game(): number;
   pt_launch(i: number): void;
   pt_exit_to_menu(): void;
+  pt_save_ptr(): number;
+  pt_save_size(): number;
+  pt_save_loaded(): number;
+  pt_save_dirty(): number;
+  pt_save_clear_dirty(): void;
+  pt_brightness(): number;
 }
 
 export interface Emulator {
@@ -32,6 +38,14 @@ export interface Emulator {
   currentGame(): number;
   launch(i: number): void;
   exitToMenu(): void;
+  /** Copy of the settings + high-scores save blob (persist it somewhere). */
+  saveBlob(): Uint8Array;
+  /** Restore a previously persisted save blob; false if it was rejected. */
+  loadSave(bytes: Uint8Array): boolean;
+  saveDirty(): boolean;
+  clearSaveDirty(): void;
+  /** Display brightness setting in percent (host applies it). */
+  brightness(): number;
 }
 
 function cString(mem: WebAssembly.Memory, ptr: number): string {
@@ -64,6 +78,8 @@ export async function loadEmulator(): Promise<Emulator> {
   }
 
   const fbPtr = e.pt_framebuffer();
+  const savePtr = e.pt_save_ptr();
+  const saveSize = e.pt_save_size();
   return {
     titles,
     init: (seed) => e.pt_init(seed >>> 0),
@@ -72,5 +88,14 @@ export async function loadEmulator(): Promise<Emulator> {
     currentGame: () => e.pt_current_game(),
     launch: (i) => e.pt_launch(i),
     exitToMenu: () => e.pt_exit_to_menu(),
+    saveBlob: () => new Uint8Array(e.memory.buffer, savePtr, saveSize).slice(),
+    loadSave: (bytes) => {
+      if (bytes.length !== saveSize) return false;
+      new Uint8Array(e.memory.buffer, savePtr, saveSize).set(bytes);
+      return e.pt_save_loaded() !== 0;
+    },
+    saveDirty: () => e.pt_save_dirty() !== 0,
+    clearSaveDirty: () => e.pt_save_clear_dirty(),
+    brightness: () => e.pt_brightness(),
   };
 }
