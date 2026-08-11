@@ -71,13 +71,17 @@ tick(0, 0, BTN_CLICK);
 check("pause > MAIN MENU exits to menu", e.pt_current_game() === -1);
 tick();
 
-// The menu row above the first game (wrap via UP) is SETTINGS. Clicking the
-// first two items cycles rotation and brightness.
+// The menu row above the first game (wrap via UP) is SETTINGS. The first
+// four items cycle screen rotation, tilt rotation, tilt flip and brightness.
 tick(0, 0, BTN_UP); tick();
 tick(0, 0, BTN_CLICK); tick();          // enter settings
-tick(0, 0, BTN_CLICK); tick();          // ROTATE -> 90
+tick(0, 0, BTN_CLICK); tick();          // SCREEN -> 90
 check("changing a setting marks the save dirty", e.pt_save_dirty() === 1);
 check("menu still draws when rotated", fbLitPixels() > 50);
+tick(0, 0, BTN_DOWN); tick();
+tick(0, 0, BTN_CLICK); tick();          // TILT -> 90
+tick(0, 0, BTN_DOWN); tick();
+tick(0, 0, BTN_CLICK); tick();          // FLIP -> ON
 tick(0, 0, BTN_DOWN); tick();
 tick(0, 0, BTN_CLICK); tick();          // BRIGHT 100 -> 20
 check("brightness cycles", e.pt_brightness() === 20);

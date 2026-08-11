@@ -11,7 +11,7 @@ namespace {
 // games being added, removed or reordered in the menu.
 constexpr int MAX_SAVE_GAMES = 16;
 constexpr uint32_t SAVE_MAGIC = 0x50545356u;  // "PTSV"
-constexpr uint16_t SAVE_VERSION = 1;
+constexpr uint16_t SAVE_VERSION = 3;
 
 struct GameSlot {
   uint32_t idHash;
@@ -67,6 +67,8 @@ void storageInit() {
   save.magic = SAVE_MAGIC;
   save.version = SAVE_VERSION;
   save.cfg.rotation = 0;
+  save.cfg.tiltRotation = 0;
+  save.cfg.tiltFlip = 0;
   save.cfg.brightness = 100;
   for (int i = 0; i < MAX_SAVE_GAMES; i++) clearSlot(save.games[i]);
   dirty = false;
@@ -117,6 +119,8 @@ bool saveBlobLoad() {
     return false;
   }
   save.cfg.rotation &= 3;
+  save.cfg.tiltRotation &= 3;
+  save.cfg.tiltFlip &= 1;
   if (save.cfg.brightness < 20 || save.cfg.brightness > 100) save.cfg.brightness = 100;
   applySettings();
   dirty = false;

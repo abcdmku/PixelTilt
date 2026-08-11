@@ -72,20 +72,58 @@ static void setupPanel() {
 // UART-RVC: the sensor autonomously streams 19-byte frames at 115200 baud,
 // 100 Hz — 0xAA 0xAA header, then index, yaw, pitch, roll, accel x/y/z
 // (int16 LE), 3 reserved bytes, checksum (sum of the 16 bytes after the
-// header). Pitch/roll are fused absolute angles in 0.01 degree units.
+// header). Tilt comes from the accelerometer fields (milli-g): low-passed,
+// they are the gravity vector in the sensor frame — the same signal the I2C
+// gravity report gives, and unlike the frame's Euler pitch/roll it stays
+// well-behaved in every mounting orientation (Euler angles compress and go
+// degenerate as the panel approaches vertical).
 static HardwareSerial rvcSerial(1);
+static uint32_t rvcFrames = 0, rvcBadSum = 0, rvcRestarts = 0;
+static uint32_t rvcBytes = 0;
+static uint32_t rvcLastFrame = 0;
+// First bytes ever seen on the wire, dumped once at boot: distinguishes
+// "nothing on RX0" (wiring) from "garbage" (baud/mode) from "0xAA 0xAA
+// frames" (link fine, look downstream).
+static uint8_t rvcFirst[24];
+static int rvcFirstCount = 0;
+static int rvcIdlePct = -1;  // last line-level check: ~100 = driven high
+
+// A powered sensor in RVC mode drives TX high between frames, overpowering
+// the weak pulldown. ~0% = nothing driving the pin (wire off / no power);
+// ~100% with no frames = sensor alive but not transmitting (PS0 strap lost,
+// sensor rebooted into I2C mode).
+static int rvcLineCheck() {
+  pinMode(IMU_RVC_RX_PIN, INPUT_PULLDOWN);
+  delayMicroseconds(500);
+  int highs = 0;
+  for (int i = 0; i < 20; i++) {
+    highs += digitalRead(IMU_RVC_RX_PIN);
+    delayMicroseconds(50);
+  }
+  return highs * 5;
+}
 
 static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
   uint8_t sum = 0;
   for (int i = 0; i < 16; i++) sum += p[i];
-  if (sum != p[16]) return false;
-  float pitch = (int16_t)(p[3] | (p[4] << 8)) * 0.01f * pt::PI / 180.0f;
-  float roll  = (int16_t)(p[5] | (p[6] << 8)) * 0.01f * pt::PI / 180.0f;
-  // Present the angles as a synthetic gravity vector so the boot zeroing and
-  // tilt mapping below are identical for both IMU transports.
-  gravX = 9.81f * pt::sinf_(pitch);
-  gravY = -9.81f * pt::sinf_(roll);
-  gravZ = 9.81f;
+  if (sum != p[16]) { rvcBadSum++; return false; }
+  constexpr float MILLI_G = 9.80665f / 1000.0f;
+  float ax = (int16_t)(p[7]  | (p[8]  << 8)) * MILLI_G;
+  float ay = (int16_t)(p[9]  | (p[10] << 8)) * MILLI_G;
+  float az = (int16_t)(p[11] | (p[12] << 8)) * MILLI_G;
+  // Sensor axes -> game axes for the documented mounting. A quarter-turn or
+  // mirror off is fixable at runtime: Settings > TILT / FLIP. Light low-pass
+  // keeps hand shake and motion spikes out of the games.
+  const float k = 0.25f;
+  if (rvcFrames == 0) {  // prime the filter so boot zeroing sees real values
+    gravX = ay; gravY = ax; gravZ = az;
+  } else {
+    gravX += (ay - gravX) * k;
+    gravY += (ax - gravY) * k;
+    gravZ += (az - gravZ) * k;
+  }
+  rvcFrames++;
+  rvcLastFrame = millis();
   return true;
 }
 
@@ -94,6 +132,8 @@ static void pollImu() {
   static int state = 0;  // 0-1 = hunting the 0xAA 0xAA header
   while (rvcSerial.available()) {
     uint8_t b = (uint8_t)rvcSerial.read();
+    rvcBytes++;
+    if (rvcFirstCount < (int)sizeof(rvcFirst)) rvcFirst[rvcFirstCount++] = b;
     if (state < 2) {
       state = (b == 0xAA) ? state + 1 : 0;
     } else {
@@ -104,10 +144,24 @@ static void pollImu() {
       }
     }
   }
+  // Stream watchdog: if frames stop (loose wire, sensor brownout, wedged
+  // UART driver), cycle the port so the stream can come back on its own.
+  if (millis() - rvcLastFrame > 2000) {
+    rvcLastFrame = millis();
+    rvcSerial.end();
+    rvcIdlePct = rvcLineCheck();
+    rvcSerial.begin(115200, SERIAL_8N1, IMU_RVC_RX_PIN, /*tx*/ -1);
+    rvcRestarts++;
+    state = 0;
+  }
 }
 
 static bool setupImu() {
+  rvcIdlePct = rvcLineCheck();
+  Serial.printf("[pixeltilt] rvc line idle: %d%% high (healthy: >80%%)\n", rvcIdlePct);
+
   rvcSerial.begin(115200, SERIAL_8N1, IMU_RVC_RX_PIN, /*tx*/ -1);
+  rvcLastFrame = millis();
   // Frames arrive every 10 ms, so a short listen proves presence.
   uint32_t start = millis();
   while (!imuOk && millis() - start < 400) {
@@ -259,6 +313,11 @@ void setup() {
     Serial.println("WARN: BNO08x not found (0x4A/0x4B) - tilt disabled");
 #endif
   }
+#if IMU_USE_UART_RVC
+  Serial.printf("[pixeltilt] rvc first bytes (%d):", rvcFirstCount);
+  for (int i = 0; i < rvcFirstCount; i++) Serial.printf(" %02X", rvcFirst[i]);
+  Serial.println(rvcFirstCount == 0 ? " <none - check wiring/PS straps>" : "");
+#endif
 
   pt::srand_(esp_random());
   pt::engineInit();
@@ -288,10 +347,19 @@ void loop() {
   static uint32_t lastBeat = 0;
   if (millis() - lastBeat >= 2000) {
     lastBeat = millis();
-    Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s tilt=%.2f,%.2f game=%d\n",
+    Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s tilt=%.2f,%.2f game=%d",
                   (unsigned long)(millis() / 1000), (unsigned long)frameCount,
                   keysOk ? "ok" : "MISSING", keys.readInputs(),
                   imuOk ? "ok" : "absent", tiltX, tiltY, pt::currentGame());
+#if IMU_USE_UART_RVC
+    // rvc=<good>/<badsum> bytes=<raw rx> age=<ms since last good frame>
+    Serial.printf(" rvc=%lu/%lu bytes=%lu age=%lu rst=%lu idle=%d%%",
+                  (unsigned long)rvcFrames, (unsigned long)rvcBadSum,
+                  (unsigned long)rvcBytes,
+                  (unsigned long)(millis() - rvcLastFrame), (unsigned long)rvcRestarts,
+                  rvcIdlePct);
+#endif
+    Serial.println();
   }
 
   // ~60 fps cap; engineTick+blit typically take well under a frame.

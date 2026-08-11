@@ -16,8 +16,12 @@ constexpr int SCORES_PER_GAME = 3;
 constexpr int32_t SCORE_EMPTY = -1;
 
 struct Settings {
-  uint8_t rotation;    // screen quarter-turns, 0..3 (applied via setRotation)
-  uint8_t brightness;  // percent, 20..100 in steps of 20
+  uint8_t rotation;      // screen quarter-turns, 0..3 (applied via setRotation)
+  uint8_t tiltRotation;  // quarter-turns applied to raw tilt input, 0..3
+  uint8_t tiltFlip;      // 1 = mirror tilt X after rotation. Together with
+                         // tiltRotation this reaches all 8 mountings of the
+                         // IMU (rotated and/or flipped) without a reflash.
+  uint8_t brightness;    // percent, 20..100 in steps of 20
 };
 
 // Reset everything to defaults (called from engineInit).

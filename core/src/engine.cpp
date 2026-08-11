@@ -126,10 +126,14 @@ void drawMenu() {
     }
   }
 
-  // Tilt bubble in the footer: live feedback that the IMU (or arrow keys) work.
+  // Tilt bubbles: live feedback that the IMU (or arrow keys) work — X along
+  // the bottom strip, Y up the right edge, so both axes are visible.
   hline(2, SCREEN_H - 2, SCREEN_W - 4, DARKGRAY);
   int bx = SCREEN_W / 2 + (int)(input.tiltX * 28.0f);
   pixel(clampi(bx, 2, SCREEN_W - 3), SCREEN_H - 2, CYAN);
+  vline(SCREEN_W - 2, 13, SCREEN_H - 16, DARKGRAY);
+  int by = (13 + SCREEN_H - 3) / 2 + (int)(input.tiltY * 22.0f);
+  pixel(SCREEN_W - 2, clampi(by, 13, SCREEN_H - 4), CYAN);
 }
 
 void tickMenu(float dt) {
@@ -206,7 +210,7 @@ void tickPause() {
 // --- settings ---------------------------------------------------------------
 
 void tickSettings(float dt) {
-  constexpr int ITEMS = 4;  // ROTATE, BRIGHT, RESET SCORES, BACK
+  constexpr int ITEMS = 6;  // SCREEN, TILT, FLIP, BRIGHT, RESET SCORES, BACK
   if (resetFlash > 0) resetFlash -= dt;
 
   if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
@@ -221,12 +225,20 @@ void tickSettings(float dt) {
         settingsChanged();
         break;
       case 1:
+        settings().tiltRotation = (settings().tiltRotation + 1) & 3;
+        settingsChanged();
+        break;
+      case 2:
+        settings().tiltFlip ^= 1;
+        settingsChanged();
+        break;
+      case 3:
         settings().brightness = settings().brightness >= 100
                                     ? 20
                                     : (uint8_t)(settings().brightness + 20);
         settingsChanged();
         break;
-      case 2:
+      case 4:
         if (!confirmReset) {
           confirmReset = true;
         } else {
@@ -235,7 +247,7 @@ void tickSettings(float dt) {
           resetFlash = 1.2f;
         }
         break;
-      case 3:
+      case 5:
         if (settingsFrom == ST_PAUSE) {
           state = ST_PAUSE;
           pauseBackdrop = false;
@@ -252,30 +264,40 @@ void tickSettings(float dt) {
 
   char buf[12];
   for (int i = 0; i < ITEMS; i++) {
-    int y = 15 + i * 9;
+    int y = 14 + i * 7;
     bool sel = i == settingsCursor;
     if (sel) {
-      fillRect(1, y - 2, SCREEN_W - 2, 9, rgb(24, 24, 48));
+      fillRect(1, y - 1, SCREEN_W - 2, 7, rgb(24, 24, 48));
       text(2, y, ">", YELLOW);
     }
     Color c = sel ? WHITE : GRAY;
     switch (i) {
       case 0:
-        text(8, y, "ROTATE", c);
+        text(8, y, "SCREEN", c);
         intToStr(settings().rotation * 90, buf);
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
       case 1:
+        text(8, y, "TILT", c);
+        intToStr(settings().tiltRotation * 90, buf);
+        text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
+        break;
+      case 2:
+        text(8, y, "FLIP", c);
+        text(SCREEN_W - textWidth(settings().tiltFlip ? "ON" : "OFF") - 3, y,
+             settings().tiltFlip ? "ON" : "OFF", sel ? CYAN : GRAY);
+        break;
+      case 3:
         text(8, y, "BRIGHT", c);
         intToStr(settings().brightness, buf);
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
-      case 2:
+      case 4:
         if (resetFlash > 0)       text(8, y, "CLEARED!", GREEN);
         else if (confirmReset)    text(8, y, "SURE?", RED);
         else                      text(8, y, "RESET SCORES", c);
         break;
-      case 3:
+      case 5:
         text(8, y, "BACK", c);
         break;
     }
@@ -358,10 +380,18 @@ int currentGame() { return runningGame; }
 void engineTick(float tiltX, float tiltY, uint8_t rawButtons, float dt) {
   dt = clampf(dt, 0.0f, MAX_DT);
 
-  // Counter-rotate tilt so "toward the bottom of the picture" keeps meaning
-  // "tilted toward the player" whatever way the panel is mounted.
+  // TILT setting first: quarter-turn the raw tilt to correct for however the
+  // IMU breakout is mounted, without needing a reflash.
   float tx = clampf(tiltX, -1.0f, 1.0f);
   float ty = clampf(tiltY, -1.0f, 1.0f);
+  switch (settings().tiltRotation) {
+    case 1: { float t = tx; tx = ty; ty = -t; } break;
+    case 2: tx = -tx; ty = -ty; break;
+    case 3: { float t = tx; tx = -ty; ty = t; } break;
+  }
+  if (settings().tiltFlip) tx = -tx;  // mirror fix for a flipped-over IMU
+  // Then counter-rotate for the screen so "toward the bottom of the picture"
+  // keeps meaning "tilted toward the player" whatever way the panel hangs.
   switch (rotation()) {
     case 1: { float t = tx; tx = ty; ty = -t; } break;
     case 2: tx = -tx; ty = -ty; break;
