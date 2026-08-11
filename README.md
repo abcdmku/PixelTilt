@@ -29,11 +29,12 @@ the real hardware.
 1. **Panel** → the board's two HUB75 connectors (top box header for a
    ribbon, back pin header for direct plug-in) are the *same* port wired in
    parallel — "dual HUB75" in the listings means these two, not two
-   channels. **Use the ribbon into the top header.** The direct plug-in
-   header only lines up on panels with the matching connector geometry
-   (Seengreat/WatangTech's own); on other 64×64 panels it lands on the OUT
-   socket or misaligned, and the board body can block the power hookup.
-   Panel power to the VH-4P 5 V terminal (max 5 V/4 A).
+   channels. Direct-mount plugs the board straight onto the panel's **IN**
+   socket (the one the silkscreen arrows point away from). If the panel
+   stays dark, unplug and firmly re-seat — a half-seated header is the
+   classic failure — and make sure you're not on the OUT socket. Connect
+   the panel's power harness before seating the board. Panel power comes
+   from the VH-4P 5 V terminal (max 5 V/4 A).
 2. **IMU** → the 4-pin 1 mm I2C header: `SDA→GPIO1`, `SCL→GPIO2`, 3V3, GND.
    The BNO08x sits at address 0x4A or 0x4B — both are probed, and neither
    conflicts with the onboard peripherals on that shared bus.
