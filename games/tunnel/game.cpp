@@ -114,7 +114,7 @@ void update(float dt) {
   }
   score = colCount / 5;
 
-  shipVy = lerpf(shipVy, input.tiltY * 50.0f, clampf(10.0f * dt, 0, 1));
+  shipVy = lerpf(shipVy, tiltCurve(input.tiltY) * 55.0f, clampf(10.0f * dt, 0, 1));
   shipY = clampf(shipY + shipVy * dt, TOP + 1.0f, SCREEN_H - 2.0f);
 
   int topWall = center[SHIP_X] - half[SHIP_X];

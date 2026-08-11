@@ -146,7 +146,7 @@ void update(float dt) {
     fuel = fmaxf_(0, fuel - 14.0f * dt);
     if (!low && fuel <= 30) sfx(SFX_ALARM);
   }
-  vx += input.tiltX * 42.0f * dt;
+  vx += tiltCurve(input.tiltX, 0.06f) * 46.0f * dt;
   vy += gravity * dt;
   sx += vx * dt;
   sy += vy * dt;

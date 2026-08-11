@@ -13,7 +13,7 @@ export const BTN_DOWN = 1 << 2;
 interface Exports {
   memory: WebAssembly.Memory;
   pt_init(seed: number): void;
-  pt_tick(dt: number, tiltX: number, tiltY: number, buttons: number): void;
+  pt_tick(dt: number, tiltX: number, tiltY: number, spin: number, buttons: number): void;
   pt_framebuffer(): number;
   pt_screen_w(): number;
   pt_screen_h(): number;
@@ -53,7 +53,8 @@ export interface SfxLibrary {
 export interface Emulator {
   titles: string[];
   init(seed: number): void;
-  tick(dt: number, tiltX: number, tiltY: number, buttons: number): void;
+  /** spin = twist rate about the screen normal, rad/s, + = clockwise. */
+  tick(dt: number, tiltX: number, tiltY: number, spin: number, buttons: number): void;
   /** RGB888 view of the 64x64 framebuffer (valid until next memory growth — the module never grows). */
   framebuffer(): Uint8Array;
   currentGame(): number;
@@ -128,7 +129,7 @@ export async function loadEmulator(): Promise<Emulator> {
   return {
     titles,
     init: (seed) => e.pt_init(seed >>> 0),
-    tick: (dt, tx, ty, b) => e.pt_tick(dt, tx, ty, b >>> 0),
+    tick: (dt, tx, ty, spin, b) => e.pt_tick(dt, tx, ty, spin, b >>> 0),
     framebuffer: () => new Uint8Array(e.memory.buffer, fbPtr, SCREEN_W * SCREEN_H * 3),
     currentGame: () => e.pt_current_game(),
     launch: (i) => e.pt_launch(i),

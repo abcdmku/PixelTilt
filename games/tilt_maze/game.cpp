@@ -188,11 +188,12 @@ void update(float dt) {
   totalTime += dt;
   if (deathFlash > 0) deathFlash -= dt;
 
-  // Tilt drives acceleration; light damping so the ball settles.
-  constexpr float ACCEL = 90.0f;
+  // Tilt drives acceleration; light damping so the ball settles. The small
+  // deadzone keeps the ball from creeping when the board sits almost level.
+  constexpr float ACCEL = 95.0f;
   constexpr float DAMP = 1.6f;
-  vx += input.tiltX * ACCEL * dt;
-  vy += input.tiltY * ACCEL * dt;
+  vx += tiltCurve(input.tiltX, 0.05f) * ACCEL * dt;
+  vy += tiltCurve(input.tiltY, 0.05f) * ACCEL * dt;
   vx -= vx * DAMP * dt;
   vy -= vy * DAMP * dt;
 

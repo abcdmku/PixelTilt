@@ -1,6 +1,9 @@
-// Cycles — light-cycle duel against the computer. Tilt to turn; both bikes
-// leave solid walls. Outlast the AI to take the round; crash and the run
-// ends. Score = rounds won.
+// Cycles — light-cycle duel against the computer. Steering is relative to
+// the bike: flick the board toward the bike's right to turn right, its left
+// to turn left (re-center between flicks), or twist the whole panel — every
+// ~40 degrees of yaw is one 90-degree turn. Both bikes leave solid walls.
+// Outlast the AI to take the round; crash and the run ends. Score = rounds
+// won.
 #include "pixeltilt/pixeltilt.h"
 
 using namespace pt;
@@ -9,11 +12,14 @@ namespace {
 
 constexpr int TOP = 8;
 constexpr int GW = 64, GH = 56;  // arena covers y 8..63
-constexpr float STEP = 1.0f / 30.0f;
+constexpr float STEP = 1.0f / 22.0f;
 
 uint8_t grid[GW * GH];  // 0 empty, 1 player trail, 2 AI trail
-int   px, py, pdx, pdy, qdx, qdy;
+int   px, py, pdx, pdy;
 int   ax, ay, adx, ady;
+int   qTurn;        // queued relative turn: -1 left, +1 right, 0 none
+bool  steerArmed;   // tilt must re-center before the next flick counts
+float twistAcc;     // integrated panel twist (rad) toward the next turn
 float stepTimer;
 int   score, roundNum, scoreRank;
 enum State { COUNTDOWN, RUNNING, ROUNDWON, OVER };
@@ -39,8 +45,11 @@ bool occ(int x, int y) {
 
 void startRound() {
   for (int i = 0; i < GW * GH; i++) grid[i] = 0;
-  px = 12; py = GH / 2; pdx = 1; pdy = 0; qdx = 1; qdy = 0;
+  px = 12; py = GH / 2; pdx = 1; pdy = 0;
   ax = GW - 13; ay = GH / 2; adx = -1; ady = 0;
+  qTurn = 0;
+  steerArmed = true;
+  twistAcc = 0;
   stepTimer = 0;
   state = COUNTDOWN;
   stateT = 0;
@@ -78,8 +87,15 @@ void aiDecide() {
 }
 
 void step() {
-  if (qdx != pdx || qdy != pdy) sfx(SFX_BLIP);
-  pdx = qdx; pdy = qdy;
+  if (qTurn) {
+    // Rotate the heading a quarter turn: +1 = clockwise on screen (the
+    // bike's right), -1 = counterclockwise.
+    int ndx = qTurn > 0 ? -pdy : pdy;
+    int ndy = qTurn > 0 ? pdx : -pdx;
+    pdx = ndx; pdy = ndy;
+    qTurn = 0;
+    sfx(SFX_BLIP);
+  }
   aiDecide();
 
   grid[py * GW + px] = 1;
@@ -162,17 +178,24 @@ void update(float dt) {
     return;
   }
 
-  // Queue a turn from the dominant tilt axis; reversing is ignored.
-  float tx = input.tiltX, ty = input.tiltY;
-  float mx = fabsf_(tx), my = fabsf_(ty);
-  if (mx > 0.4f || my > 0.4f) {
-    if (mx > my) {
-      int d = tx > 0 ? 1 : -1;
-      if (!(pdx == -d && pdy == 0)) { qdx = d; qdy = 0; }
-    } else {
-      int d = ty > 0 ? 1 : -1;
-      if (!(pdy == -d && pdx == 0)) { qdx = 0; qdy = d; }
-    }
+  // Relative steering: the tilt component along the bike's right-hand side
+  // queues a right turn, its left a left turn — so "lean right" always means
+  // the same thing no matter which way the bike is heading. Hysteresis: fire
+  // past 0.45, re-arm once the board re-centers under 0.25.
+  float steer = input.tiltX * -pdy + input.tiltY * pdx;
+  if (fabsf_(steer) < 0.25f) steerArmed = true;
+  if (steerArmed && fabsf_(steer) > 0.45f) {
+    steerArmed = false;
+    qTurn = steer > 0 ? 1 : -1;
+  }
+
+  // Twist steering: integrate panel yaw; each ~40 degrees of twist is one
+  // turn. The slow decay bleeds off sensor drift without eating real twists.
+  twistAcc += input.spin * dt;
+  twistAcc -= twistAcc * 1.5f * dt;
+  if (fabsf_(twistAcc) > 0.7f) {
+    qTurn = twistAcc > 0 ? 1 : -1;
+    twistAcc = 0;
   }
 
   stepTimer += dt;

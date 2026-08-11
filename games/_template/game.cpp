@@ -7,6 +7,7 @@
 //                   yours via the pt:: drawing calls below.
 //   * pt::input     the current frame's input:
 //         input.tiltX / input.tiltY      tilt in [-1, 1]  (arrows on PC)
+//         input.spin                     twist rate, rad/s, + = clockwise (Q/E on PC)
 //         input.held(BTN_UP/CLICK/DOWN)  button currently down
 //         input.justDown(...)            pressed this frame
 //   * Drawing:      clear, pixel, line, rect, fillRect, circle, fillCircle,

@@ -19,6 +19,7 @@ import { setMusicTrack, stopMusic } from "../audio/music";
 
 // Keyboard contract (mirrors the hardware):
 //   Arrow keys  -> tilt (the BNO08x on the device)
+//   Q / E       -> twist the panel counter-/clockwise (yaw spin)
 //   A / S / D   -> thumb wheel up / click / down (Enter also clicks)
 const BUTTON_KEYS: Record<string, number> = {
   KeyA: BTN_UP,
@@ -29,6 +30,7 @@ const BUTTON_KEYS: Record<string, number> = {
 
 const TILT_ATTACK = 6.5; // how fast held arrows ramp tilt (per second-ish)
 const TILT_RELEASE = 9.0;
+const SPIN_RATE = 3.0; // rad/s of twist while Q/E is held
 
 // Settings + high scores persist in localStorage, mirroring the device's NVS.
 const SAVE_KEY = "pixeltilt.save";
@@ -97,6 +99,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const virtualButtons = useRef(0);
   const padTilt = useRef<{ x: number; y: number } | null>(null);
   const tilt = useRef({ x: 0, y: 0 });
+  const spin = useRef(0);
   const pausedRef = useRef(false);
   const sfxSerial = useRef(0);
   const musicSerial = useRef(0);
@@ -134,7 +137,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
       if (ev.repeat) return;
-      const arrows = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+      const arrows = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyQ", "KeyE"];
       if (arrows.includes(ev.code) || ev.code in BUTTON_KEYS) {
         ev.preventDefault();
         if (down) keys.current.add(ev.code);
@@ -172,12 +175,15 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         tilt.current.x += (tx - tilt.current.x) * Math.min(1, rate(tx) * dt);
         tilt.current.y += (ty - tilt.current.y) * Math.min(1, rate(ty) * dt);
       }
+      const spinTarget =
+        ((k.has("KeyE") ? 1 : 0) - (k.has("KeyQ") ? 1 : 0)) * SPIN_RATE;
+      spin.current += (spinTarget - spin.current) * Math.min(1, 12 * dt);
 
       let buttons = virtualButtons.current;
       for (const code of k) buttons |= BUTTON_KEYS[code] ?? 0;
 
       if (!pausedRef.current) {
-        m.tick(dt, tilt.current.x, tilt.current.y, buttons);
+        m.tick(dt, tilt.current.x, tilt.current.y, spin.current, buttons);
       }
 
       // Audio: drain the core's SFX ring every frame (latency matters), keep

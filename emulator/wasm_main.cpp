@@ -15,8 +15,8 @@ WASM_EXPORT(pt_init) void pt_init(unsigned seed) {
   pt::engineInit();
 }
 
-WASM_EXPORT(pt_tick) void pt_tick(float dt, float tiltX, float tiltY, unsigned buttons) {
-  pt::engineTick(tiltX, tiltY, (unsigned char)buttons, dt);
+WASM_EXPORT(pt_tick) void pt_tick(float dt, float tiltX, float tiltY, float spin, unsigned buttons) {
+  pt::engineTick(tiltX, tiltY, spin, (unsigned char)buttons, dt);
 }
 
 WASM_EXPORT(pt_framebuffer) const unsigned char* pt_framebuffer() { return pt::framebuffer; }

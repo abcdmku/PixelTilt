@@ -29,6 +29,18 @@ inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi 
 inline int   clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 inline float lerpf(float a, float b, float t) { return a + (b - a) * t; }
 
+// Shape a raw tilt axis for analog control: a small deadzone so a not-quite-
+// level board reads as neutral, then rescale the rest to [0,1] and blend in a
+// quadratic so gentle leans give fine control while full tilt keeps full
+// authority. Games multiply the result by their own speed.
+inline float tiltCurve(float v, float dz = 0.08f) {
+  float a = v < 0 ? -v : v;
+  if (a <= dz) return 0.0f;
+  a = (a - dz) / (1.0f - dz);
+  a = a * (0.45f + 0.55f * a);
+  return v < 0 ? -a : a;
+}
+
 inline float sqrtf_(float x) { return __builtin_sqrtf(x); }
 
 int   floori(float x);

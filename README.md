@@ -97,6 +97,7 @@ compiler install.
 | Hardware | Emulator |
 | --- | --- |
 | Tilt (BNO08x gravity) | Arrow keys, or drag the tilt pad |
+| Twist / spin (BNO08x yaw, UART-RVC mode) | `Q` / `E` |
 | Wheel up / click / down | `A` / `S` / `D` (Enter also clicks) |
 | Pause menu (in game) | hold `S` (device: hold wheel press ~0.7 s) |
 
@@ -176,9 +177,12 @@ The API (see [`core/include/pixeltilt/`](core/include/pixeltilt)):
 - **`gfx.h`** — 64×64 RGB888 framebuffer: `clear`, `pixel`, `line`, `rect`,
   `fillRect`, `circle`, `fillCircle`, `text`/`textCentered` (3×5 font),
   colors via `rgb()` / `hsv()`.
-- **`input.h`** — `input.tiltX/.tiltY` in [-1, 1]; `held` / `justDown` /
-  `justUp` for `BTN_UP`, `BTN_CLICK`, `BTN_DOWN`.
+- **`input.h`** — `input.tiltX/.tiltY` in [-1, 1]; `input.spin` — twist rate
+  about the screen normal in rad/s (+ = clockwise; yaw from the UART-RVC
+  stream on hardware, `Q`/`E` in the emulator, 0 when unavailable); `held` /
+  `justDown` / `justUp` for `BTN_UP`, `BTN_CLICK`, `BTN_DOWN`.
 - **`ptmath.h`** — `sinf_`, `cosf_`, `sqrtf_`, `atan2f_`, `clampf`, `lerpf`,
+  `tiltCurve` (deadzone + response shaping for analog tilt control),
   deterministic RNG (`randRange`, `randf`). Games use these instead of
   `<math.h>` so the exact same code compiles freestanding for WASM and for
   the ESP32.
@@ -215,7 +219,7 @@ tools/      build-wasm, gen-games, new-game, smoke-test (Node, zero deps)
 ```
 
 Both platforms drive the identical core loop:
-`engineTick(tiltX, tiltY, buttons, dt)` → game draws into a shared
+`engineTick(tiltX, tiltY, spin, buttons, dt)` → game draws into a shared
 `framebuffer[64*64*3]` → platform blits it (DMA to the panel, or canvas in
 the browser).
 

@@ -103,7 +103,7 @@ void update(float dt) {
   }
 
   difficulty += dt * 0.03f;
-  shipX = clampf(shipX + input.tiltX * 60.0f * dt, 3.0f, SCREEN_W - 4.0f);
+  shipX = clampf(shipX + tiltCurve(input.tiltX) * 75.0f * dt, 3.0f, SCREEN_W - 4.0f);
 
   for (int i = 0; i < NSTARS; i++) {
     stars[i].y += stars[i].v * dt;

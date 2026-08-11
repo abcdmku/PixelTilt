@@ -97,3 +97,10 @@
 #define TILT_Y_SIGN (+1.0f)
 // Set to 1 if your IMU is rotated 90 degrees relative to the panel.
 #define TILT_SWAP_XY 0
+
+// Twist (spin) mapping — UART-RVC mode only, derived from the frame's yaw
+// field. Games expect positive spin = panel turning clockwise as you look at
+// it. BNO08x yaw follows the right-hand rule about sensor Z (counterclockwise
+// positive viewed from above), hence the default negation; flip the sign if
+// twist reads backwards on your mounting.
+#define SPIN_SIGN (-1.0f)

@@ -51,13 +51,17 @@ void init() {
 
 float stepTime() { return fmaxf_(0.22f, 0.5f - seqLen * 0.02f); }
 
+// Hysteresis like hopper's: fire past 0.5, re-arm under 0.3, and hold off on
+// ambiguous diagonals instead of guessing an axis.
 int readDir() {
   float ax = fabsf_(input.tiltX), ay = fabsf_(input.tiltY);
-  if (ax < 0.45f && ay < 0.45f) {
+  if (ax < 0.3f && ay < 0.3f) {
     tiltArmed = true;
     return -1;
   }
   if (!tiltArmed) return -1;
+  if (fmaxf_(ax, ay) < 0.5f) return -1;
+  if (fminf_(ax, ay) > fmaxf_(ax, ay) * 0.8f) return -1;
   tiltArmed = false;
   if (ax > ay) return input.tiltX > 0 ? 1 : 3;
   return input.tiltY > 0 ? 2 : 0;

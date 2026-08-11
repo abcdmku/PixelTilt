@@ -105,12 +105,14 @@ void update(float dt) {
   }
 
   // Dominant tilt axis chooses direction; reversing into yourself is ignored.
+  // An axis only wins with a 25% margin over the other, so a sloppy diagonal
+  // lean keeps the last queued heading instead of flip-flopping.
   float ax = fabsf_(input.tiltX), ay = fabsf_(input.tiltY);
   if (ax > TILT_DEADZONE || ay > TILT_DEADZONE) {
-    if (ax > ay) {
+    if (ax > ay * 1.25f) {
       int d = input.tiltX > 0 ? 1 : -1;
       if (d != -dirX) { nextX = d; nextY = 0; }
-    } else {
+    } else if (ay > ax * 1.25f) {
       int d = input.tiltY > 0 ? 1 : -1;
       if (d != -dirY) { nextX = 0; nextY = d; }
     }

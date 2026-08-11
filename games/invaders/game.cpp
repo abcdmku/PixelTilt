@@ -118,7 +118,7 @@ void update(float dt) {
 
   anim += dt;
   if (hitFlash > 0) hitFlash -= dt;
-  cannonX = clampf(cannonX + input.tiltX * 55.0f * dt, 3.0f, SCREEN_W - 4.0f);
+  cannonX = clampf(cannonX + tiltCurve(input.tiltX) * 70.0f * dt, 3.0f, SCREEN_W - 4.0f);
 
   if (input.justDown(BTN_CLICK) && !bulletLive) {
     bulletLive = true;

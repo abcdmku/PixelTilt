@@ -29,7 +29,7 @@ function fbLitPixels() {
   return lit;
 }
 const BTN_UP = 1, BTN_CLICK = 2, BTN_DOWN = 4;
-const tick = (tx = 0, ty = 0, buttons = 0) => e.pt_tick(1 / 60, tx, ty, buttons);
+const tick = (tx = 0, ty = 0, buttons = 0, spin = 0) => e.pt_tick(1 / 60, tx, ty, spin, buttons);
 
 e.pt_init(1234);
 check("screen is 64x64", e.pt_screen_w() === 64 && e.pt_screen_h() === 64);

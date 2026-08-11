@@ -82,7 +82,7 @@ void update(float dt) {
     return;
   }
 
-  playerY += input.tiltY * 78.0f * dt;
+  playerY += tiltCurve(input.tiltY) * 90.0f * dt;
   playerY = clampf(playerY, TOP + PAD_H / 2, SCREEN_H - PAD_H / 2);
 
   // AI chases the ball only while it approaches; its top speed creeps up as

@@ -108,8 +108,9 @@ void update(float dt) {
     return;
   }
 
-  // Absolute tilt->paddle mapping: full left tilt = far left, etc.
-  float target = SCREEN_W / 2.0f + input.tiltX * (SCREEN_W / 2.0f - 2.0f);
+  // Absolute tilt->paddle mapping: full left tilt = far left, etc. The curve
+  // deadzones a not-quite-level board and softens small leans for aiming.
+  float target = SCREEN_W / 2.0f + tiltCurve(input.tiltX) * (SCREEN_W / 2.0f - 2.0f);
   paddleX = lerpf(paddleX, target, clampf(dt * 14.0f, 0.0f, 1.0f));
   paddleX = clampf(paddleX, PADDLE_W / 2.0f, SCREEN_W - PADDLE_W / 2.0f);
 

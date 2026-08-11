@@ -38,6 +38,9 @@ static uint32_t dirtySince = 0;  // millis of the first unsaved change, 0 = clea
 // gets subtracted so the game zero matches however the device sits at boot.
 static float gravX = 0, gravY = 0, gravZ = 0;
 static float zeroX = 0, zeroY = 0;
+// Twist rate about the vertical axis (rad/s, game convention: + = clockwise
+// looking at the panel). UART-RVC mode only; stays 0 on the I2C path.
+static float spinRate = 0;
 static uint32_t lastMicros = 0;
 
 static void setupPanel() {
@@ -112,6 +115,10 @@ static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
   float ax = (int16_t)(p[7]  | (p[8]  << 8)) * MILLI_G;
   float ay = (int16_t)(p[9]  | (p[10] << 8)) * MILLI_G;
   float az = (int16_t)(p[11] | (p[12] << 8)) * MILLI_G;
+  // Yaw (0.01-degree units). The absolute heading drifts over minutes, so the
+  // games get the wrapped frame-to-frame delta as a rate instead.
+  int16_t yawRaw = (int16_t)(p[1] | (p[2] << 8));
+  static int16_t lastYawRaw = 0;
   // Sensor axes -> game axes for the documented mounting. A quarter-turn or
   // mirror off is fixable at runtime: Settings > TILT / FLIP. Light low-pass
   // keeps hand shake and motion spikes out of the games.
@@ -122,7 +129,15 @@ static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
     gravX += (ay - gravX) * k;
     gravY += (ax - gravY) * k;
     gravZ += (az - gravZ) * k;
+    int32_t dYaw = yawRaw - lastYawRaw;                 // 0.01 deg per 10 ms
+    if (dYaw > 18000) dYaw -= 36000;                    // wrap at +-180 deg
+    if (dYaw < -18000) dYaw += 36000;
+    float rate = SPIN_SIGN * dYaw * (0.01f * 100.0f * pt::PI / 180.0f);  // rad/s
+    // A stream gap leaves lastYawRaw stale for one frame; clamp so that lone
+    // delta can't slam the filter.
+    spinRate += (pt::clampf(rate, -12.0f, 12.0f) - spinRate) * k;
   }
+  lastYawRaw = yawRaw;
   rvcFrames++;
   rvcLastFrame = millis();
   return true;
@@ -341,7 +356,7 @@ void loop() {
   float tiltX = 0, tiltY = 0;
   readTilt(tiltX, tiltY);
 
-  pt::engineTick(tiltX, tiltY, readButtons(), dt);
+  pt::engineTick(tiltX, tiltY, spinRate, readButtons(), dt);
   applyBrightness();
   persistSave();
   blit();

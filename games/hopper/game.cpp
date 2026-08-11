@@ -58,15 +58,19 @@ void init() {
   resetFrog();
 }
 
-// One hop per tilt: returns 0=up 1=right 2=down 3=left, or -1. The board
-// must come back near level before the next hop registers.
+// One hop per tilt: returns 0=up 1=right 2=down 3=left, or -1. Hysteresis —
+// a hop fires past 0.5 but the board only re-arms back under 0.3, so jitter
+// at the threshold can't double-hop. Ambiguous diagonals wait until one axis
+// clearly dominates rather than guessing.
 int readHop() {
   float ax = fabsf_(input.tiltX), ay = fabsf_(input.tiltY);
-  if (ax < 0.45f && ay < 0.45f) {
+  if (ax < 0.3f && ay < 0.3f) {
     tiltArmed = true;
     return -1;
   }
   if (!tiltArmed) return -1;
+  if (fmaxf_(ax, ay) < 0.5f) return -1;
+  if (fminf_(ax, ay) > fmaxf_(ax, ay) * 0.8f) return -1;
   tiltArmed = false;
   if (ax > ay) return input.tiltX > 0 ? 1 : 3;
   return input.tiltY > 0 ? 2 : 0;

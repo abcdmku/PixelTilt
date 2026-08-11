@@ -19,6 +19,13 @@ struct InputState {
   float tiltX = 0.0f;
   float tiltY = 0.0f;
 
+  // Twist rate about the axis pointing out of the screen, in rad/s; positive
+  // = the panel rotating clockwise as you look at it. On hardware this is the
+  // yaw rate from the BNO08x UART-RVC stream (0 in I2C-gravity mode); in the
+  // emulator, the Q/E keys. Integrate it for a twist angle; expect a little
+  // noise around 0, so gate on a threshold before acting on it.
+  float spin = 0.0f;
+
   uint8_t buttons  = 0;  // currently held
   uint8_t pressed  = 0;  // went down this frame
   uint8_t released = 0;  // went up this frame

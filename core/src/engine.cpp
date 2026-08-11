@@ -440,7 +440,7 @@ void exitToMenu() {
 
 int currentGame() { return runningGame; }
 
-void engineTick(float tiltX, float tiltY, uint8_t rawButtons, float dt) {
+void engineTick(float tiltX, float tiltY, float spin, uint8_t rawButtons, float dt) {
   dt = clampf(dt, 0.0f, MAX_DT);
 
   // TILT setting first: quarter-turn the raw tilt to correct for however the
@@ -462,6 +462,9 @@ void engineTick(float tiltX, float tiltY, uint8_t rawButtons, float dt) {
   }
   input.tiltX = tx;
   input.tiltY = ty;
+  // Spin is about the screen normal, so the in-plane TILT/rotation corrections
+  // don't touch it — only a flipped-over IMU (Z pointing backwards) reverses it.
+  input.spin = settings().tiltFlip ? -spin : spin;
   input.pressed  = rawButtons & ~prevButtons;
   input.released = prevButtons & ~rawButtons;
   input.buttons  = rawButtons;
