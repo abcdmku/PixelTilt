@@ -21,26 +21,58 @@ the real hardware.
 | Part | Buy | Notes |
 | --- | --- | --- |
 | Seengreat RGB Matrix HUB75 S3 | [Amazon](https://www.amazon.com/dp/B0H69DTZVH) · [Seengreat direct](https://seengreat.com/product/359/rgb-matrix-hub75-s3-esp32-s3-based-led-matrix-controller-board-with-a) | ESP32-S3-WROOM-1-N16R8 controller with HUB75 port, 3-way thumb wheel, dual USB-C |
-| GY-BNO08x 9-DOF IMU | [Amazon](https://www.amazon.com/dp/B0D2RB2TYC) (or [SparkFun BNO086 Qwiic](https://www.amazon.com/dp/B0CG5XXQ5Y)) | BNO080/BNO085 breakout, I2C |
+| GY-BNO08x 9-DOF IMU | [Amazon](https://www.amazon.com/dp/B0D2RB2TYC) (or [SparkFun BNO086 Qwiic](https://www.amazon.com/dp/B0CG5XXQ5Y)) | BNO080/BNO085 breakout with PS0/PS1 pins broken out (UART-RVC mode) |
 | 64×64 HUB75 RGB matrix | [Amazon — Waveshare P3](https://www.amazon.com/dp/B0B3F7WKJ1) (or [P2.5](https://www.amazon.com/dp/B0BQYFRVTR)) | Any 64×64 HUB75/HUB75E panel works |
 
-### Wiring
+### Build
 
-1. **Panel** → the board's two HUB75 connectors (top box header for a
-   ribbon, back pin header for direct plug-in) are the *same* port wired in
-   parallel — "dual HUB75" in the listings means these two, not two
-   channels. Direct-mount plugs the board straight onto the panel's **IN**
-   socket (the one the silkscreen arrows point away from). If the panel
-   stays dark, unplug and firmly re-seat — a half-seated header is the
-   classic failure — and make sure you're not on the OUT socket. Connect
-   the panel's power harness before seating the board. Panel power comes
-   from the VH-4P 5 V terminal (max 5 V/4 A).
-2. **IMU** → the 4-pin 1 mm I2C header: `SDA→GPIO1`, `SCL→GPIO2`, 3V3, GND.
-   The BNO08x sits at address 0x4A or 0x4B — both are probed, and neither
-   conflicts with the onboard peripherals on that shared bus.
-3. **Power/flash** → the main USB-C port. The second "Power" USB-C can feed
-   the matrix separately.
+Everything mounts on the back of the panel — no soldering if your IMU
+breakout ships with its header pre-fitted. Besides the parts above you'll
+want five dupont jumper wires (for VCC, GND, PS0, PS1 and the sensor's TX
+line), foam tape or M2 standoffs for the IMU, and a small screwdriver for
+the power terminal.
 
+![Wiring overview — panel rear, board on the IN socket, IMU mid-panel](docs/wiring-diagram.svg)
+
+1. **Panel power first.** Screw the panel's power harness into the board's
+   VH-4P 5 V terminal and plug the other end into the panel's power
+   connector (max 5 V/4 A). Do this *before* seating the board — the
+   connector is awkward to reach afterwards.
+2. **Seat the board on the IN socket.** The board's two HUB75 connectors
+   (top box header for a ribbon, back pin header for direct plug-in) are
+   the *same* port wired in parallel — "dual HUB75" in the listings means
+   these two, not two channels. Direct-mount plugs the board straight onto
+   the panel's **IN** socket (the one the silkscreen arrows point away
+   from). If the panel stays dark later, unplug and firmly re-seat — a
+   half-seated header is the classic failure — and make sure you're not on
+   the OUT socket. OUT stays empty on a single-panel build.
+3. **Mount the IMU mid-panel.** Stick the GY-BNO08x flat against the panel
+   back with foam tape (or standoffs), square to the panel edges — tilt is
+   measured relative to however it sits, so straight now saves a config
+   tweak later.
+4. **Wire the IMU (UART-RVC):** `3V3→VCC`, `GND→GND`, `PS0→3V3`,
+   `PS1→GND`, and the sensor's `SDA/MISO/TX` pin `→RX0` (GPIO44) on the
+   board's bottom header. Match the silkscreen *names* on both ends — pin
+   order can differ between breakout revisions. The PS0/PS1 straps put the
+   BNO08x in UART-RVC mode, where it streams tilt at 100 Hz over plain
+   serial — chosen over I2C because the BNO08x's I2C clock stretching is
+   notoriously unreliable against ESP32-family chips. The sensor's
+   SCL/SCK/RX and INT/RST/ADR pins stay unconnected.
+
+   ![S3 to BNO08x pinout](docs/s3-bno08x-pinout.svg)
+
+   *(Prefer I2C anyway? Strap PS0 and PS1 to GND, wire `SDA→GPIO1`,
+   `SCL→GPIO2` on the 4-pin 1 mm header, and set `IMU_USE_UART_RVC` to 0 in
+   [`firmware/src/board_config.h`](firmware/src/board_config.h).)*
+
+5. **Power up.** The main USB-C port powers everything and flashes the
+   firmware (the second "Power" USB-C can feed the matrix separately if
+   your supply is weak). Lay the panel flat and still until the menu
+   appears — tilt zero is captured at boot; press RESET to re-zero.
+
+If tilt feels mirrored or rotated once you're in a game, flip
+`TILT_X_SIGN` / `TILT_Y_SIGN` / `TILT_SWAP_XY` in
+[`firmware/src/board_config.h`](firmware/src/board_config.h) and reflash.
 The thumb wheel (up / press / down) is read through the onboard PCA9557 I2C
 expander at 0x19 — already handled by the firmware. All pin definitions live
 in [`firmware/src/board_config.h`](firmware/src/board_config.h) and match

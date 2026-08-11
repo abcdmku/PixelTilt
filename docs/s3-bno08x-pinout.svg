@@ -1,67 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 600" font-family="Segoe UI, Arial, sans-serif">
-  <rect width="860" height="600" fill="#f8fafc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 620" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="860" height="620" fill="#f8fafc"/>
 
-  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">HUB75 S3 ⇄ GY-BNO08x — I2C pinout</text>
-  <text x="40" y="70" font-size="13" fill="#64748b">4-pin 1 mm I2C header on the board · wire by signal name (silkscreen order can vary)</text>
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">HUB75 S3 ⇄ GY-BNO08x — UART-RVC pinout</text>
+  <text x="40" y="70" font-size="13" fill="#64748b">bottom pin header on the board · wire by signal name (silkscreen order can vary)</text>
 
   <!-- ============ S3 board block ============ -->
-  <rect x="70" y="110" width="250" height="280" rx="10" fill="#163a24" stroke="#2f855a" stroke-width="2"/>
+  <rect x="70" y="110" width="250" height="300" rx="10" fill="#163a24" stroke="#2f855a" stroke-width="2"/>
   <text x="195" y="140" font-size="15" font-weight="700" fill="#a7f3d0" text-anchor="middle">Seengreat HUB75 S3</text>
   <text x="195" y="158" font-size="11" fill="#6ee7b7" text-anchor="middle">(ESP32-S3-WROOM-1)</text>
 
   <g stroke="#92702a">
     <circle cx="316" cy="200" r="6" fill="#d4af37"/>
-    <circle cx="316" cy="250" r="6" fill="#d4af37"/>
-    <circle cx="316" cy="300" r="6" fill="#d4af37"/>
-    <circle cx="316" cy="350" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="280" r="6" fill="#d4af37"/>
+    <circle cx="316" cy="360" r="6" fill="#d4af37"/>
   </g>
   <g font-size="13" fill="#d1fae5" text-anchor="end" font-weight="600">
     <text x="300" y="204">3V3</text>
-    <text x="300" y="254">GND</text>
-    <text x="300" y="304">GPIO 1 (SDA)</text>
-    <text x="300" y="354">GPIO 2 (SCL)</text>
+    <text x="300" y="284">GND</text>
+    <text x="300" y="364">RX0 (GPIO 44)</text>
   </g>
 
   <!-- ============ BNO08x block ============ -->
-  <rect x="540" y="110" width="250" height="280" rx="10" fill="#4338ca" stroke="#312e81" stroke-width="2"/>
+  <rect x="540" y="110" width="250" height="300" rx="10" fill="#4338ca" stroke="#312e81" stroke-width="2"/>
   <text x="665" y="140" font-size="15" font-weight="700" fill="#e0e7ff" text-anchor="middle">GY-BNO08x IMU</text>
-  <text x="665" y="158" font-size="11" fill="#c7d2fe" text-anchor="middle">(BNO080 / BNO085, I2C mode)</text>
+  <text x="665" y="158" font-size="11" fill="#c7d2fe" text-anchor="middle">(BNO080 / BNO085, UART-RVC mode)</text>
 
   <g stroke="#92702a">
-    <circle cx="544" cy="200" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="250" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="300" r="6" fill="#d4af37"/>
-    <circle cx="544" cy="350" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="190" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="235" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="280" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="325" r="6" fill="#d4af37"/>
+    <circle cx="544" cy="370" r="6" fill="#d4af37"/>
   </g>
   <g font-size="13" fill="#e0e7ff" text-anchor="start" font-weight="600">
-    <text x="560" y="204">VCC / VIN</text>
-    <text x="560" y="254">GND</text>
-    <text x="560" y="304">SDA</text>
-    <text x="560" y="354">SCL</text>
+    <text x="560" y="194">VCC / VIN</text>
+    <text x="560" y="239">PS0</text>
+    <text x="560" y="284">GND</text>
+    <text x="560" y="329">PS1</text>
+    <text x="560" y="374">SDA / MISO / TX</text>
   </g>
-  <text x="665" y="378" font-size="10.5" fill="#a5b4fc" text-anchor="middle">INT · RST · ADR — leave unconnected (ADR low → 0x4A)</text>
+  <text x="665" y="398" font-size="10.5" fill="#a5b4fc" text-anchor="middle">SCL/SCK/RX · INT · RST · ADR — leave unconnected</text>
 
   <!-- ============ wires ============ -->
-  <g fill="none" stroke-width="4" stroke-linecap="round">
-    <line x1="322" y1="200" x2="538" y2="200" stroke="#dc2626"/>
-    <line x1="322" y1="250" x2="538" y2="250" stroke="#1f2937"/>
-    <line x1="322" y1="300" x2="538" y2="300" stroke="#2563eb"/>
-    <line x1="322" y1="350" x2="538" y2="350" stroke="#eab308"/>
+  <g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="322,200 430,200 538,190" stroke="#dc2626"/>
+    <polyline points="322,200 430,214 538,235" stroke="#f97316"/>
+    <polyline points="322,280 430,280 538,280" stroke="#1f2937"/>
+    <polyline points="322,280 430,298 538,325" stroke="#64748b"/>
+    <polyline points="322,360 430,364 538,370" stroke="#2563eb"/>
   </g>
   <g font-size="12" fill="#334155" text-anchor="middle">
-    <g><rect x="394" y="182" width="72" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="195">3.3 V</text></g>
-    <g><rect x="394" y="232" width="72" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="245">GND</text></g>
-    <g><rect x="382" y="282" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="295">SDA · GPIO 1</text></g>
-    <g><rect x="382" y="332" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="345">SCL · GPIO 2</text></g>
+    <g><rect x="382" y="180" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="193">3V3 · VCC</text></g>
+    <g><rect x="382" y="216" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="229">3V3 · PS0</text></g>
+    <g><rect x="382" y="262" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="275">GND · GND</text></g>
+    <g><rect x="382" y="300" width="96" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="313">GND · PS1</text></g>
+    <g><rect x="376" y="342" width="108" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="355">TX → RX0 (44)</text></g>
   </g>
 
   <!-- ============ notes ============ -->
-  <rect x="70" y="428" width="720" height="130" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="70" y="448" width="720" height="130" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
   <g font-size="13" fill="#475569">
-    <text x="90" y="456" font-weight="700" fill="#0f172a" font-size="14">Notes</text>
-    <text x="90" y="480">• I2C address 0x4A (GY default); firmware also probes 0x4B. Bus runs at 400 kHz.</text>
-    <text x="90" y="502">• Bus is shared with the onboard PCA9557 wheel expander (0x19) and RTC — no address conflicts.</text>
-    <text x="90" y="524">• Power from 3V3 — safe whether or not the breakout has its own regulator.</text>
-    <text x="90" y="546">• Tilt flipped or rotated? Adjust TILT_X_SIGN / TILT_Y_SIGN / TILT_SWAP_XY in firmware/src/board_config.h.</text>
+    <text x="90" y="476" font-weight="700" fill="#0f172a" font-size="14">Notes</text>
+    <text x="90" y="500">• PS0 high + PS1 low = UART-RVC mode: the sensor streams tilt at 100 Hz, 115200 baud — no I2C clock stretching.</text>
+    <text x="90" y="522">• RX0 is free for this: the serial console runs over the native USB-C port, not UART0.</text>
+    <text x="90" y="544">• Power from 3V3 — safe whether or not the breakout has its own regulator.</text>
+    <text x="90" y="566">• Tilt flipped or rotated? Adjust TILT_X_SIGN / TILT_Y_SIGN / TILT_SWAP_XY in firmware/src/board_config.h.</text>
   </g>
 </svg>

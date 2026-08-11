@@ -51,8 +51,18 @@
 #define KEY_DOWN_IO  2  // K3
 
 // --- BNO08x IMU ------------------------------------------------------------
-// GY-BNO08x boards usually strap to 0x4A; SparkFun/Adafruit default to 0x4B.
-// The firmware probes both, primary first.
+// Transport. 1 = UART-RVC (default): strap PS0->3V3 and PS1->GND, then wire
+// the sensor's SDA/MISO/TX pin to RX0 (GPIO44) on the bottom header. The
+// BNO08x streams pitch/roll at 100 Hz with no driver library — and no I2C
+// clock stretching, which the BNO08x is known to handle badly against
+// ESP32-family I2C controllers. RX0 is free for this because Serial logging
+// goes over native USB (ARDUINO_USB_CDC_ON_BOOT in platformio.ini).
+// 0 = I2C on the 4-pin 1mm header (PS0 and PS1 both to GND).
+#define IMU_USE_UART_RVC 1
+#define IMU_RVC_RX_PIN   44  // RX0
+
+// I2C mode only: GY-BNO08x boards usually strap to 0x4A; SparkFun/Adafruit
+// default to 0x4B. The firmware probes both, primary first.
 #define BNO08X_ADDR_PRIMARY   0x4A
 #define BNO08X_ADDR_SECONDARY 0x4B
 

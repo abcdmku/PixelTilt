@@ -1,16 +1,19 @@
 // PixelTilt firmware for the Seengreat RGB Matrix HUB75 S3.
 //
-// The platform layer is deliberately thin: read the BNO08x gravity vector and
-// the thumb wheel, call pt::engineTick(), blit pt::framebuffer to the panel.
+// The platform layer is deliberately thin: read the BNO08x tilt (UART-RVC
+// stream by default, I2C gravity vector as the alternative — board_config.h)
+// and the thumb wheel, call pt::engineTick(), blit pt::framebuffer to the panel.
 // Everything game-related lives in core/ and games/, shared byte-for-byte
 // with the browser emulator.
 #include <Arduino.h>
 #include <Wire.h>
 #include <Preferences.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
-#include <SparkFun_BNO08x_Arduino_Library.h>
 
 #include "board_config.h"
+#if !IMU_USE_UART_RVC
+#include <SparkFun_BNO08x_Arduino_Library.h>
+#endif
 #include "pca9557.h"
 #include "pixeltilt/engine.h"
 #include "pixeltilt/gfx.h"
@@ -20,7 +23,9 @@
 
 static MatrixPanel_I2S_DMA* panel = nullptr;
 static PCA9557 keys;
+#if !IMU_USE_UART_RVC
 static BNO08x imu;
+#endif
 static Preferences prefs;
 static bool imuOk = false;
 static bool keysOk = false;
@@ -62,6 +67,58 @@ static void setupPanel() {
   panel->clearScreen();
 }
 
+#if IMU_USE_UART_RVC
+
+// UART-RVC: the sensor autonomously streams 19-byte frames at 115200 baud,
+// 100 Hz — 0xAA 0xAA header, then index, yaw, pitch, roll, accel x/y/z
+// (int16 LE), 3 reserved bytes, checksum (sum of the 16 bytes after the
+// header). Pitch/roll are fused absolute angles in 0.01 degree units.
+static HardwareSerial rvcSerial(1);
+
+static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
+  uint8_t sum = 0;
+  for (int i = 0; i < 16; i++) sum += p[i];
+  if (sum != p[16]) return false;
+  float pitch = (int16_t)(p[3] | (p[4] << 8)) * 0.01f * pt::PI / 180.0f;
+  float roll  = (int16_t)(p[5] | (p[6] << 8)) * 0.01f * pt::PI / 180.0f;
+  // Present the angles as a synthetic gravity vector so the boot zeroing and
+  // tilt mapping below are identical for both IMU transports.
+  gravX = 9.81f * pt::sinf_(pitch);
+  gravY = -9.81f * pt::sinf_(roll);
+  gravZ = 9.81f;
+  return true;
+}
+
+static void pollImu() {
+  static uint8_t payload[17];
+  static int state = 0;  // 0-1 = hunting the 0xAA 0xAA header
+  while (rvcSerial.available()) {
+    uint8_t b = (uint8_t)rvcSerial.read();
+    if (state < 2) {
+      state = (b == 0xAA) ? state + 1 : 0;
+    } else {
+      payload[state++ - 2] = b;
+      if (state == 19) {
+        state = 0;
+        if (rvcParse(payload)) imuOk = true;
+      }
+    }
+  }
+}
+
+static bool setupImu() {
+  rvcSerial.begin(115200, SERIAL_8N1, IMU_RVC_RX_PIN, /*tx*/ -1);
+  // Frames arrive every 10 ms, so a short listen proves presence.
+  uint32_t start = millis();
+  while (!imuOk && millis() - start < 400) {
+    pollImu();
+    delay(2);
+  }
+  return imuOk;
+}
+
+#else  // I2C
+
 static void enableImuReports() {
   imu.enableGravity(10);  // 100 Hz
 }
@@ -91,6 +148,8 @@ static void pollImu() {
     }
   }
 }
+
+#endif  // IMU_USE_UART_RVC
 
 // Average gravity for a moment at boot so "flat" is wherever the device
 // currently rests. Press RESET to re-zero.
@@ -189,10 +248,16 @@ void setup() {
 
   imuOk = setupImu();
   if (imuOk) {
+#if !IMU_USE_UART_RVC
     enableImuReports();
+#endif
     Serial.println("BNO08x online");
   } else {
+#if IMU_USE_UART_RVC
+    Serial.println("WARN: no UART-RVC frames on RX0 - tilt disabled");
+#else
     Serial.println("WARN: BNO08x not found (0x4A/0x4B) - tilt disabled");
+#endif
   }
 
   pt::srand_(esp_random());
