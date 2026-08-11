@@ -70,9 +70,12 @@ the power terminal.
    your supply is weak). Lay the panel flat and still until the menu
    appears — tilt zero is captured at boot; press RESET to re-zero.
 
-If tilt feels mirrored or rotated once you're in a game, flip
-`TILT_X_SIGN` / `TILT_Y_SIGN` / `TILT_SWAP_XY` in
-[`firmware/src/board_config.h`](firmware/src/board_config.h) and reflash.
+If tilt feels rotated once you're in a game (e.g. tilting away moves things
+sideways), cycle **Settings → TILT** on the device — it quarter-turns the
+tilt mapping to match however the IMU is mounted. If tilt is *mirrored*
+(left/right swapped), toggle **Settings → FLIP**. Between the two, every
+IMU mounting is reachable without a reflash. **Settings → SCREEN** likewise
+rotates the picture if the panel hangs sideways.
 The thumb wheel (up / press / down) is read through the onboard PCA9557 I2C
 expander at 0x19 — already handled by the firmware. All pin definitions live
 in [`firmware/src/board_config.h`](firmware/src/board_config.h) and match

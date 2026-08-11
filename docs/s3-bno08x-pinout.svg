@@ -64,6 +64,6 @@
     <text x="90" y="500">• PS0 high + PS1 low = UART-RVC mode: the sensor streams tilt at 100 Hz, 115200 baud — no I2C clock stretching.</text>
     <text x="90" y="522">• RX0 is free for this: the serial console runs over the native USB-C port, not UART0.</text>
     <text x="90" y="544">• Power from 3V3 — safe whether or not the breakout has its own regulator.</text>
-    <text x="90" y="566">• Tilt flipped or rotated? Adjust TILT_X_SIGN / TILT_Y_SIGN / TILT_SWAP_XY in firmware/src/board_config.h.</text>
+    <text x="90" y="566">• Tilt rotated? Cycle Settings → TILT on the device. Mirrored? Toggle Settings → FLIP. No reflash needed.</text>
   </g>
 </svg>
