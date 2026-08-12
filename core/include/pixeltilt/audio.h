@@ -15,6 +15,7 @@
 //   setSfxStyle(STYLE_CHIP);        // in init(): pick the game's sound bank
 //   sfx(SFX_COIN);                  // fire-and-forget one-shot
 //   sfx(SFX_BOUNCE, 1.3f);          // same patch, pitched up 30%
+//   sfxSample(BYTES, sizeof(BYTES)); // one-shot from an embedded .pta sample
 //   music(MUS_ACTION);              // in init(): request background music
 //
 // Host-facing API (see wasm_main.cpp / firmware):
@@ -30,6 +31,7 @@ enum SfxWave : uint32_t {
   WAVE_TRIANGLE,
   WAVE_SINE,
   WAVE_NOISE,       // freq-tinted white noise (sample & hold at freq)
+  WAVE_SAMPLE,      // embedded PTA sample (see SfxPatch::sample / sfxSample)
 };
 
 // Abstract game events; each style bank tunes a patch for every one of these.
@@ -85,6 +87,12 @@ struct SfxPatch {
   float arpMult;    // pitch multiplier applied after arpTime (0 = no arp)
   float arpTime;    // seconds into the sound the arp jump happens
   float pitch;      // runtime multiplier (sfx(id, pitch)); 1.0 in the tables
+  // WAVE_SAMPLE only: an embedded PTA file (frontend/src/audio/pta.ts format)
+  // the host plays instead of synthesizing; the synth fields above are unused
+  // except volume and pitch (playback-rate multiplier). The pointer must stay
+  // valid for the life of the sound — point at const data, not a stack buffer.
+  const uint8_t* sample;  // nullptr for synth patches
+  uint32_t sampleLen;
 };
 
 struct SfxEvent {
@@ -100,6 +108,10 @@ SfxStyle sfxStyle();
 void sfx(SfxId id, float pitch = 1.0f);  // play from the current style bank
 void sfx(SfxStyle style, SfxId id, float pitch = 1.0f);
 void sfx(const SfxPatch& patch);         // play a custom one-off patch
+// Play an embedded PTA sample (encode with the Audio Lab or the same IMA
+// ADPCM encoder as frontend/src/audio/pta.ts) as a fire-and-forget one-shot.
+void sfxSample(const uint8_t* pta, uint32_t len, float volume = 1.0f,
+               float pitch = 1.0f);
 void music(MusicTrack t);                // no-op if t is already playing
 MusicTrack musicTrack();
 

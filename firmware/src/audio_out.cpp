@@ -42,88 +42,6 @@ inline float osc(uint32_t wave, float ph, float duty) {
   }
 }
 
-// --- SFX voices (port of synth.ts renderPatch) ------------------------------
-
-struct SfxVoice {
-  bool active = false;
-  pt::SfxPatch p;
-  uint32_t n = 0, total = 0;
-  float dur = 0, f0 = 1, glide = 0;
-  float phase = 0, hold = 0, holdT = 0;
-  uint32_t rng = 1;
-};
-
-SfxVoice sfxVoices[MAX_SFX_VOICES];
-
-inline float rngNext(uint32_t& s) {  // xorshift32, mirrors pt::rand_
-  s ^= s << 13;
-  s ^= s >> 17;
-  s ^= s << 5;
-  return (float)s / 4294967295.0f;
-}
-
-void spawnSfx(const pt::SfxPatch& p) {
-  // Prefer a free slot; otherwise steal the voice closest to finishing.
-  SfxVoice* v = nullptr;
-  for (auto& s : sfxVoices) {
-    if (!s.active) { v = &s; break; }
-  }
-  if (!v) {
-    v = &sfxVoices[0];
-    for (auto& s : sfxVoices) {
-      if (s.total - s.n < v->total - v->n) v = &s;
-    }
-  }
-  v->p = p;
-  float pitch = p.pitch > 0 ? p.pitch : 1.0f;
-  v->dur = fminf(p.attack + p.sustain + p.release, 4.0f);
-  v->total = (uint32_t)fmaxf(1.0f, v->dur * RATE);
-  v->f0 = fmaxf(1.0f, p.freqStart * pitch);
-  float f1 = fmaxf(1.0f, p.freqEnd * pitch);
-  v->glide = logf(f1 / v->f0);
-  v->n = 0;
-  v->phase = 0;
-  v->hold = 0;
-  v->holdT = 0;
-  v->rng = 0x50495854u;
-  v->active = true;
-}
-
-float renderSfx(SfxVoice& v) {
-  const pt::SfxPatch& p = v.p;
-  float t = v.n / RATE;
-  float u = t / v.dur;
-
-  float freq = v.f0 * expf(v.glide * u);
-  if (p.arpMult > 0 && p.arpTime > 0 && t >= p.arpTime) freq *= p.arpMult;
-  if (p.vibDepth > 0) freq += p.vibDepth * sinf(2.0f * (float)M_PI * p.vibRate * t);
-  if (freq < 1) freq = 1;
-
-  v.phase += freq / RATE;
-  float ph = v.phase - floorf(v.phase);
-
-  float s;
-  if (p.wave == pt::WAVE_NOISE) {
-    // White noise resampled at `freq` so the sweep reads as pitch.
-    v.holdT += freq / RATE;
-    if (v.holdT >= 0.5f) {
-      v.holdT = 0;
-      v.hold = rngNext(v.rng) * 2.0f - 1.0f;
-    }
-    s = v.hold;
-  } else {
-    s = osc(p.wave, ph, p.duty > 0 ? p.duty : 0.5f);
-  }
-
-  float env;
-  if (t < p.attack) env = t / fmaxf(p.attack, 1e-5f);
-  else if (t < p.attack + p.sustain) env = 1.0f;
-  else env = fmaxf(0.0f, 1.0f - (t - p.attack - p.sustain) / fmaxf(p.release, 1e-5f));
-
-  if (++v.n >= v.total) v.active = false;
-  return s * env * p.volume;
-}
-
 // --- embedded PTA playback ---------------------------------------------------
 // Streams a PTA file (frontend/src/audio/pta.ts format: 16-byte header, mono
 // IMA ADPCM in 256-byte blocks or raw PCM8) from flash, decoding one sample
@@ -148,6 +66,7 @@ const int8_t IMA_INDEX[16] = {-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 
 
 struct PtaStream {
   bool active = false;
+  bool loop = true;  // music loops; sample SFX play once
   const uint8_t* data = nullptr;
   uint32_t len = 0;
   uint32_t sampleCount = 0;
@@ -165,7 +84,7 @@ struct PtaStream {
 
 PtaStream pta;
 
-bool ptaOpen(PtaStream& p, const uint8_t* data, uint32_t len) {
+bool ptaOpen(PtaStream& p, const uint8_t* data, uint32_t len, float pitch = 1.0f) {
   p.active = false;
   if (!data || len < 16) return false;
   if (data[0] != 'P' || data[1] != 'T' || data[2] != 'A' || data[3] != '1') return false;
@@ -177,7 +96,7 @@ bool ptaOpen(PtaStream& p, const uint8_t* data, uint32_t len) {
   if (p.codec == 0 && p.blockSize < 8) return false;
   p.data = data;
   p.len = len;
-  p.step = rate / RATE;
+  p.step = rate / RATE * (pitch > 0 ? pitch : 1.0f);
   p.decoded = 0;
   p.blockIdx = 0;
   p.blockLeft = 0;
@@ -189,7 +108,11 @@ bool ptaOpen(PtaStream& p, const uint8_t* data, uint32_t len) {
 }
 
 float ptaNextSample(PtaStream& p) {
-  if (p.decoded >= p.sampleCount) {  // loop
+  if (p.decoded >= p.sampleCount) {
+    if (!p.loop) {  // one-shot sample: hold silence and let the voice retire
+      p.active = false;
+      return 0;
+    }
     p.decoded = 0;
     p.blockIdx = 0;
     p.blockLeft = 0;
@@ -246,6 +169,110 @@ inline float ptaResampled(PtaStream& p) {
     p.frac -= 1.0f;
   }
   return p.s0 + (p.s1 - p.s0) * p.frac;
+}
+
+// --- SFX voices (port of synth.ts renderPatch) ------------------------------
+
+struct SfxVoice {
+  bool active = false;
+  pt::SfxPatch p;
+  uint32_t n = 0, total = 0;
+  float dur = 0, f0 = 1, glide = 0;
+  float phase = 0, hold = 0, holdT = 0;
+  uint32_t rng = 1;
+  PtaStream pta;  // WAVE_SAMPLE voices stream their patch's embedded PTA
+};
+
+SfxVoice sfxVoices[MAX_SFX_VOICES];
+
+inline float rngNext(uint32_t& s) {  // xorshift32, mirrors pt::rand_
+  s ^= s << 13;
+  s ^= s >> 17;
+  s ^= s << 5;
+  return (float)s / 4294967295.0f;
+}
+
+void spawnSfx(const pt::SfxPatch& p) {
+  // Prefer a free slot; otherwise steal the voice closest to finishing.
+  SfxVoice* v = nullptr;
+  for (auto& s : sfxVoices) {
+    if (!s.active) { v = &s; break; }
+  }
+  if (!v) {
+    v = &sfxVoices[0];
+    for (auto& s : sfxVoices) {
+      if (s.total - s.n < v->total - v->n) v = &s;
+    }
+  }
+  v->p = p;
+  float pitch = p.pitch > 0 ? p.pitch : 1.0f;
+  v->pta.active = false;
+  if (p.wave == pt::WAVE_SAMPLE) {
+    if (!ptaOpen(v->pta, p.sample, p.sampleLen, pitch)) return;
+    v->pta.loop = false;
+    v->n = 0;
+    v->total = (uint32_t)fmaxf(1.0f, v->pta.sampleCount / v->pta.step);
+    v->active = true;
+    return;
+  }
+  v->dur = fminf(p.attack + p.sustain + p.release, 4.0f);
+  v->total = (uint32_t)fmaxf(1.0f, v->dur * RATE);
+  v->f0 = fmaxf(1.0f, p.freqStart * pitch);
+  float f1 = fmaxf(1.0f, p.freqEnd * pitch);
+  v->glide = logf(f1 / v->f0);
+  v->n = 0;
+  v->phase = 0;
+  v->hold = 0;
+  v->holdT = 0;
+  v->rng = 0x50495854u;
+  v->active = true;
+}
+
+float renderSfx(SfxVoice& v) {
+  const pt::SfxPatch& p = v.p;
+
+  if (p.wave == pt::WAVE_SAMPLE) {
+    if (!v.pta.active) {
+      v.active = false;
+      return 0;
+    }
+    v.n++;
+    float s = ptaResampled(v.pta) * p.volume;
+    if (!v.pta.active) v.active = false;
+    return s;
+  }
+
+  float t = v.n / RATE;
+  float u = t / v.dur;
+
+  float freq = v.f0 * expf(v.glide * u);
+  if (p.arpMult > 0 && p.arpTime > 0 && t >= p.arpTime) freq *= p.arpMult;
+  if (p.vibDepth > 0) freq += p.vibDepth * sinf(2.0f * (float)M_PI * p.vibRate * t);
+  if (freq < 1) freq = 1;
+
+  v.phase += freq / RATE;
+  float ph = v.phase - floorf(v.phase);
+
+  float s;
+  if (p.wave == pt::WAVE_NOISE) {
+    // White noise resampled at `freq` so the sweep reads as pitch.
+    v.holdT += freq / RATE;
+    if (v.holdT >= 0.5f) {
+      v.holdT = 0;
+      v.hold = rngNext(v.rng) * 2.0f - 1.0f;
+    }
+    s = v.hold;
+  } else {
+    s = osc(p.wave, ph, p.duty > 0 ? p.duty : 0.5f);
+  }
+
+  float env;
+  if (t < p.attack) env = t / fmaxf(p.attack, 1e-5f);
+  else if (t < p.attack + p.sustain) env = 1.0f;
+  else env = fmaxf(0.0f, 1.0f - (t - p.attack - p.sustain) / fmaxf(p.release, 1e-5f));
+
+  if (++v.n >= v.total) v.active = false;
+  return s * env * p.volume;
 }
 
 // --- music sequencer (plays pt::musicDef note tables) ------------------------

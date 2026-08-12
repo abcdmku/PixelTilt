@@ -2,7 +2,8 @@
 // gain buses. Browsers gate audio behind a user gesture, so the context is
 // created/resumed from a one-time pointer/key listener; sounds fired before
 // that are simply dropped (they're fire-and-forget game blips).
-import { SfxPatch } from "./patch";
+import { SfxPatch, WAVE_SAMPLE } from "./patch";
+import { ptaToAudioBuffer } from "./pta";
 import { renderPatch, SFX_SAMPLE_RATE } from "./synth";
 
 // The chiptune tables are authored ~-6 dB low (see music.ts); the music bus
@@ -96,6 +97,24 @@ export function setMusicVolume(percent: number) {
 /** Fire-and-forget one-shot from a core SFX patch. */
 export function playPatch(patch: SfxPatch) {
   if (!audioUnlocked() || !ctx || !sfxBus) return;
+  if (patch.wave === WAVE_SAMPLE) {
+    if (!patch.sample) return;
+    let buf: AudioBuffer;
+    try {
+      buf = ptaToAudioBuffer(ctx, patch.sample);
+    } catch {
+      return; // corrupt sample data — drop the sound
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    if (patch.pitch > 0 && patch.pitch !== 1) src.playbackRate.value = patch.pitch;
+    const g = ctx.createGain();
+    g.gain.value = patch.volume;
+    src.connect(g);
+    g.connect(sfxBus);
+    src.start();
+    return;
+  }
   const samples = renderPatch(patch);
   const buf = ctx.createBuffer(1, samples.length, SFX_SAMPLE_RATE);
   buf.copyToChannel(samples, 0);
