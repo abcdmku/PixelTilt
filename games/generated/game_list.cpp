@@ -38,5 +38,5 @@ const Game* const GAME_LIST[] = {
     &pt_game_tilt_maze,
     &pt_game_tunnel,
 };
-const int GAME_COUNT = 15;
+const int GAME_COUNT = 16;
 }  // namespace pt
