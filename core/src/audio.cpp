@@ -161,6 +161,17 @@ void sfx(SfxStyle style, SfxId id, float pitch) {
 
 void sfx(const SfxPatch& patch) { push(patch); }
 
+void sfxSample(const uint8_t* pta, uint32_t len, float volume, float pitch) {
+  if (!pta || len == 0) return;
+  SfxPatch p = {};
+  p.wave = WAVE_SAMPLE;
+  p.volume = volume;
+  p.pitch = pitch > 0.0f ? pitch : 1.0f;
+  p.sample = pta;
+  p.sampleLen = len;
+  push(p);
+}
+
 void music(MusicTrack t) {
   if (t < 0 || t >= MUS_COUNT || t == track) return;
   track = t;

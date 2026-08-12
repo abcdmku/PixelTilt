@@ -7,6 +7,7 @@ extern const pt::Game pt_game_cycles;
 extern const pt::Game pt_game_flappy;
 extern const pt::Game pt_game_hopper;
 extern const pt::Game pt_game_invaders;
+extern const pt::Game pt_game_jet_slalom;
 extern const pt::Game pt_game_lander;
 extern const pt::Game pt_game_meteors;
 extern const pt::Game pt_game_pong;
@@ -25,6 +26,7 @@ const Game* const GAME_LIST[] = {
     &pt_game_flappy,
     &pt_game_hopper,
     &pt_game_invaders,
+    &pt_game_jet_slalom,
     &pt_game_lander,
     &pt_game_meteors,
     &pt_game_pong,
