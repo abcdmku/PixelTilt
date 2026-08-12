@@ -28,8 +28,6 @@ bool  pouring;
 int   material;   // 0 sand, 1 water, 2 stone, 3 erase
 float simAcc;     // fractional simulation passes owed
 float hudT;       // seconds left showing the material name
-float idleT;
-bool  everPoured;
 int   frameNo;
 int   scanFlip;   // alternates x scan order to hide lateral bias
 
@@ -43,8 +41,6 @@ void init() {
   material = 0;
   simAcc = 0;
   hudT = 0;
-  idleT = 0;
-  everPoured = false;
   frameNo = 0;
   scanFlip = 0;
 }
@@ -161,13 +157,10 @@ void draw() {
     fillRect((SCREEN_W - w) / 2 - 2, 7, w + 4, 9, rgb(8, 10, 20));
     textCentered(9, MAT_NAME[material], WHITE);
   }
-  if (!everPoured)
-    textCentered(56, "CLICK POURS", fmodf_(idleT, 1.0f) < 0.6f ? GRAY : DARKGRAY);
 }
 
 void update(float dt) {
   frameNo++;
-  idleT += dt;
   if (hudT > 0) hudT -= dt;
 
   if (input.justDown(BTN_UP)) {
@@ -181,7 +174,6 @@ void update(float dt) {
   }
   if (input.justDown(BTN_CLICK)) {
     pouring = !pouring;
-    everPoured = true;
     sfx(SFX_BLIP, pouring ? 1.2f : 0.8f);
   }
   if (pouring) emit();

@@ -21,6 +21,18 @@ void engineInit();
 // is a Button bitmask, dt in seconds.
 void engineTick(float tiltX, float tiltY, float spin, uint8_t rawButtons, float dt);
 
+// Optional: linear (gravity-removed) acceleration in g, raw platform axes —
+// same frame the platform's tilt is measured in. Call before engineTick each
+// frame; the engine applies the mounting/rotation corrections and publishes it
+// as input.accelX/Y/Z. Hosts that can't measure it just never call this.
+void setAccel(float ax, float ay, float az);
+
+// Optional: the full in-plane force field in g — the RAW specific force
+// (tilt AND shake in one vector, may exceed 1 g, keep filtering minimal so
+// shakes arrive with no latency), raw platform axes. Same calling pattern as
+// setAccel; published as input.gravityX/Y.
+void setGravity(float gx, float gy);
+
 // Index into GAME_LIST of the running game, or -1 when in the menu.
 int  currentGame();
 // Programmatic launch/exit (used by the emulator UI's game list).

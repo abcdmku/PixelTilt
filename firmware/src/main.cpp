@@ -38,6 +38,15 @@ static uint32_t dirtySince = 0;  // millis of the first unsaved change, 0 = clea
 // gets subtracted so the game zero matches however the device sits at boot.
 static float gravX = 0, gravY = 0, gravZ = 0;
 static float zeroX = 0, zeroY = 0;
+// Linear (gravity-removed) acceleration, m/s^2, same axis mapping as grav:
+// the shake signal. RVC mode derives it as raw-minus-low-passed; I2C mode
+// gets it straight from the sensor's linear-acceleration report.
+static float linX = 0, linY = 0, linZ = 0;
+// Near-raw specific force, m/s^2, same axis mapping: tilt AND shake in one
+// vector, only lightly smoothed so a jerk reaches the games within a frame
+// or two. This feeds pt::setGravity — the physics field. (RVC: the raw
+// sample; I2C: gravity + linear-acceleration reports recombined.)
+static float instX = 0, instY = 0;
 // Twist rate about the vertical axis (rad/s, game convention: + = clockwise
 // looking at the panel). UART-RVC mode only; stays 0 on the I2C path.
 static float spinRate = 0;
@@ -123,12 +132,23 @@ static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
   // mirror off is fixable at runtime: Settings > TILT / FLIP. Light low-pass
   // keeps hand shake and motion spikes out of the games.
   const float k = 0.25f;
-  if (rvcFrames == 0) {  // prime the filter so boot zeroing sees real values
+  if (rvcFrames == 0) {  // prime the filters so boot zeroing sees real values
     gravX = ay; gravY = ax; gravZ = az;
+    instX = ay; instY = ax;
   } else {
     gravX += (ay - gravX) * k;
     gravY += (ax - gravY) * k;
     gravZ += (az - gravZ) * k;
+    // The physics field wants the shake intact: barely smooth the raw
+    // sample (just enough to knock down single-frame spikes).
+    instX += (ay - instX) * 0.8f;
+    instY += (ax - instY) * 0.8f;
+    // Shake = the residual the gravity low-pass rejects, lightly smoothed to
+    // knock down single-frame spikes without burying a real flick.
+    const float ks = 0.7f;
+    linX += ((ay - gravX) - linX) * ks;
+    linY += ((ax - gravY) - linY) * ks;
+    linZ += ((az - gravZ) - linZ) * ks;
     int32_t dYaw = yawRaw - lastYawRaw;                 // 0.01 deg per 10 ms
     if (dYaw > 18000) dYaw -= 36000;                    // wrap at +-180 deg
     if (dYaw < -18000) dYaw += 36000;
@@ -190,7 +210,8 @@ static bool setupImu() {
 #else  // I2C
 
 static void enableImuReports() {
-  imu.enableGravity(10);  // 100 Hz
+  imu.enableGravity(10);              // 100 Hz
+  imu.enableLinearAccelerometer(10);  // shake input
 }
 
 // The SparkFun BNO08x begin() can block indefinitely when nothing answers at
@@ -215,8 +236,16 @@ static void pollImu() {
       gravX = imu.getGravityX();
       gravY = imu.getGravityY();
       gravZ = imu.getGravityZ();
+    } else if (imu.getSensorEventID() == SENSOR_REPORTID_LINEAR_ACCELERATION) {
+      linX = imu.getLinAccelX();
+      linY = imu.getLinAccelY();
+      linZ = imu.getLinAccelZ();
     }
   }
+  // Specific force = gravity + linear acceleration (both sensor-fused, so
+  // this is as raw as the I2C path gets).
+  instX = gravX + linX;
+  instY = gravY + linY;
 }
 
 #endif  // IMU_USE_UART_RVC
@@ -251,6 +280,38 @@ static void readTilt(float& tiltX, float& tiltY) {
 #endif
   tiltX = pt::clampf(TILT_X_SIGN * x, -1.0f, 1.0f);
   tiltY = pt::clampf(TILT_Y_SIGN * y, -1.0f, 1.0f);
+}
+
+// The physics field in g: near-raw specific force (tilt AND shake in one
+// vector, no TILT_FULL_ANGLE_DEG rescale, may exceed 1 g). Jerking the
+// device toward its low edge harder than free fall flips the vector, which
+// is exactly what lets simulated sand lift off the floor like the real
+// thing — so no low-pass here beyond the light spike smoothing.
+static void readGravity(float& gx, float& gy) {
+  const float invG = 1.0f / 9.80665f;
+  float x = (instX - zeroX) * invG;
+  float y = (instY - zeroY) * invG;
+#if TILT_SWAP_XY
+  float t = x; x = y; y = t;
+#endif
+  gx = TILT_X_SIGN * x;
+  gy = TILT_Y_SIGN * y;
+}
+
+// Shake, in g, through the same axis mapping as tilt. Because tilt and shake
+// come from the same specific-force reading, this shared mapping is what lets
+// games treat accel as an additive term to their tilt field and get the
+// pseudo-force direction right (jerk the box right -> sand lags left).
+static void readAccel(float& ax, float& ay, float& az) {
+  const float invG = 1.0f / 9.80665f;
+  float x = linX * invG;
+  float y = linY * invG;
+#if TILT_SWAP_XY
+  float t = x; x = y; y = t;
+#endif
+  ax = TILT_X_SIGN * x;
+  ay = TILT_Y_SIGN * y;
+  az = linZ * invG;
 }
 
 // Brightness setting (percent) scales the board's PWM ceiling.
@@ -355,7 +416,13 @@ void loop() {
   pollImu();
   float tiltX = 0, tiltY = 0;
   readTilt(tiltX, tiltY);
+  float accelX = 0, accelY = 0, accelZ = 0;
+  readAccel(accelX, accelY, accelZ);
+  float gravityX = 0, gravityY = 0;
+  readGravity(gravityX, gravityY);
 
+  pt::setAccel(accelX, accelY, accelZ);
+  pt::setGravity(gravityX, gravityY);
   pt::engineTick(tiltX, tiltY, spinRate, readButtons(), dt);
   applyBrightness();
   persistSave();

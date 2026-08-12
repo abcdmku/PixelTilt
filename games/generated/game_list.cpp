@@ -11,6 +11,7 @@ extern const pt::Game pt_game_lander;
 extern const pt::Game pt_game_meteors;
 extern const pt::Game pt_game_pong;
 extern const pt::Game pt_game_sand;
+extern const pt::Game pt_game_sand2;
 extern const pt::Game pt_game_simon;
 extern const pt::Game pt_game_snake;
 extern const pt::Game pt_game_stacker;
@@ -28,11 +29,12 @@ const Game* const GAME_LIST[] = {
     &pt_game_meteors,
     &pt_game_pong,
     &pt_game_sand,
+    &pt_game_sand2,
     &pt_game_simon,
     &pt_game_snake,
     &pt_game_stacker,
     &pt_game_tilt_maze,
     &pt_game_tunnel,
 };
-const int GAME_COUNT = 14;
+const int GAME_COUNT = 15;
 }  // namespace pt

@@ -7,7 +7,15 @@
 //                   yours via the pt:: drawing calls below.
 //   * pt::input     the current frame's input:
 //         input.tiltX / input.tiltY      tilt in [-1, 1]  (arrows on PC)
+//         input.gravityX/Y               the physics field in g: raw specific
+//                                        force, tilt AND shake in one vector
+//                                        (1.0 = vertical at rest, exceeds 1
+//                                        mid-shake); a = 9.8 * gravity
 //         input.spin                     twist rate, rad/s, + = clockwise (Q/E on PC)
+//         input.accelX/Y/Z               shake: linear accel in g (Space on PC).
+//                                        Same convention as tilt — add it to
+//                                        your tilt field and free objects get
+//                                        flung the right way. Deadzone it.
 //         input.held(BTN_UP/CLICK/DOWN)  button currently down
 //         input.justDown(...)            pressed this frame
 //   * Drawing:      clear, pixel, line, rect, fillRect, circle, fillCircle,

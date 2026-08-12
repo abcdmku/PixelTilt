@@ -180,9 +180,13 @@ void update(float dt) {
 
   // Relative steering: the tilt component along the bike's right-hand side
   // queues a right turn, its left a left turn — so "lean right" always means
-  // the same thing no matter which way the bike is heading. Hysteresis: fire
-  // past 0.45, re-arm once the board re-centers under 0.25.
-  float steer = input.tiltX * -pdy + input.tiltY * pdx;
+  // the same thing no matter which way the bike is heading. Linear accel is
+  // blended in (input.h's tilt + accel*K pattern) so a sharp flick steers
+  // immediately, before the board has tilted far. Hysteresis: fire past
+  // 0.45, re-arm once the board re-centers under 0.25.
+  float sx = input.tiltX + input.accelX * 0.6f;
+  float sy = input.tiltY + input.accelY * 0.6f;
+  float steer = sx * -pdy + sy * pdx;
   if (fabsf_(steer) < 0.25f) steerArmed = true;
   if (steerArmed && fabsf_(steer) > 0.45f) {
     steerArmed = false;

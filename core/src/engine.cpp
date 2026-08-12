@@ -177,12 +177,6 @@ void tickGame(float dt) {
     enterPause();
     return;
   }
-  // Progress bar overlay while the pause hold is charging.
-  if (clickHold > 0.2f) {
-    int w = (int)((clickHold / PAUSE_HOLD_SECONDS) * (SCREEN_W - 8));
-    fillRect(4, SCREEN_H - 3, SCREEN_W - 8, 2, DARKGRAY);
-    fillRect(4, SCREEN_H - 3, w, 2, YELLOW);
-  }
 }
 
 void tickPause() {
@@ -440,28 +434,63 @@ void exitToMenu() {
 
 int currentGame() { return runningGame; }
 
+static float accelRawX = 0, accelRawY = 0, accelRawZ = 0;
+static float gravRawX = 0, gravRawY = 0;
+
+void setAccel(float ax, float ay, float az) {
+  accelRawX = ax;
+  accelRawY = ay;
+  accelRawZ = az;
+}
+
+void setGravity(float gx, float gy) {
+  gravRawX = gx;
+  gravRawY = gy;
+}
+
+// The in-plane mounting corrections applied to every measured vector: TILT
+// setting first (quarter-turn for however the IMU breakout is mounted), the
+// mirror fix for a flipped-over IMU, then the counter-rotation for the screen
+// so "toward the bottom of the picture" keeps meaning "toward the player"
+// whatever way the panel hangs.
+static void mountCorrect(float& x, float& y) {
+  switch (settings().tiltRotation) {
+    case 1: { float t = x; x = y; y = -t; } break;
+    case 2: x = -x; y = -y; break;
+    case 3: { float t = x; x = -y; y = t; } break;
+  }
+  if (settings().tiltFlip) x = -x;
+  switch (rotation()) {
+    case 1: { float t = x; x = y; y = -t; } break;
+    case 2: x = -x; y = -y; break;
+    case 3: { float t = x; x = -y; y = t; } break;
+  }
+}
+
 void engineTick(float tiltX, float tiltY, float spin, uint8_t rawButtons, float dt) {
   dt = clampf(dt, 0.0f, MAX_DT);
 
-  // TILT setting first: quarter-turn the raw tilt to correct for however the
-  // IMU breakout is mounted, without needing a reflash.
   float tx = clampf(tiltX, -1.0f, 1.0f);
   float ty = clampf(tiltY, -1.0f, 1.0f);
-  switch (settings().tiltRotation) {
-    case 1: { float t = tx; tx = ty; ty = -t; } break;
-    case 2: tx = -tx; ty = -ty; break;
-    case 3: { float t = tx; tx = -ty; ty = t; } break;
-  }
-  if (settings().tiltFlip) tx = -tx;  // mirror fix for a flipped-over IMU
-  // Then counter-rotate for the screen so "toward the bottom of the picture"
-  // keeps meaning "tilted toward the player" whatever way the panel hangs.
-  switch (rotation()) {
-    case 1: { float t = tx; tx = ty; ty = -t; } break;
-    case 2: tx = -tx; ty = -ty; break;
-    case 3: { float t = tx; tx = -ty; ty = t; } break;
-  }
+  mountCorrect(tx, ty);
   input.tiltX = tx;
   input.tiltY = ty;
+
+  // Shake rides through the same corrections as tilt; z only cares whether
+  // the IMU is flipped over.
+  float ax = accelRawX, ay = accelRawY;
+  mountCorrect(ax, ay);
+  input.accelX = ax;
+  input.accelY = ay;
+  input.accelZ = settings().tiltFlip ? -accelRawZ : accelRawZ;
+
+  // Full-range field: legitimately exceeds 1 g during shakes (it is the raw
+  // specific force); the clamp only guards sensor glitches.
+  float gx = clampf(gravRawX, -3.0f, 3.0f);
+  float gy = clampf(gravRawY, -3.0f, 3.0f);
+  mountCorrect(gx, gy);
+  input.gravityX = gx;
+  input.gravityY = gy;
   // Spin is about the screen normal, so the in-plane TILT/rotation corrections
   // don't touch it — only a flipped-over IMU (Z pointing backwards) reverses it.
   input.spin = settings().tiltFlip ? -spin : spin;

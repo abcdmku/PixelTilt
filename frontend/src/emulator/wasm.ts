@@ -14,6 +14,8 @@ interface Exports {
   memory: WebAssembly.Memory;
   pt_init(seed: number): void;
   pt_tick(dt: number, tiltX: number, tiltY: number, spin: number, buttons: number): void;
+  pt_accel(ax: number, ay: number, az: number): void;
+  pt_gravity(gx: number, gy: number): void;
   pt_framebuffer(): number;
   pt_screen_w(): number;
   pt_screen_h(): number;
@@ -55,6 +57,11 @@ export interface Emulator {
   init(seed: number): void;
   /** spin = twist rate about the screen normal, rad/s, + = clockwise. */
   tick(dt: number, tiltX: number, tiltY: number, spin: number, buttons: number): void;
+  /** Shake: linear acceleration in g, tilt's axis convention; call before tick. */
+  setAccel(ax: number, ay: number, az: number): void;
+  /** Physics field in g: tilt + shake in one vector (raw specific force,
+   *  1.0 = vertical at rest, may exceed 1 during shakes). */
+  setGravity(gx: number, gy: number): void;
   /** RGB888 view of the 64x64 framebuffer (valid until next memory growth — the module never grows). */
   framebuffer(): Uint8Array;
   currentGame(): number;
@@ -130,6 +137,8 @@ export async function loadEmulator(): Promise<Emulator> {
     titles,
     init: (seed) => e.pt_init(seed >>> 0),
     tick: (dt, tx, ty, spin, b) => e.pt_tick(dt, tx, ty, spin, b >>> 0),
+    setAccel: (ax, ay, az) => e.pt_accel(ax, ay, az),
+    setGravity: (gx, gy) => e.pt_gravity(gx, gy),
     framebuffer: () => new Uint8Array(e.memory.buffer, fbPtr, SCREEN_W * SCREEN_H * 3),
     currentGame: () => e.pt_current_game(),
     launch: (i) => e.pt_launch(i),

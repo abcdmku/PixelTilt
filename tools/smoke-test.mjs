@@ -62,15 +62,21 @@ tick();
 tick(0, 0, BTN_CLICK);
 check("click launches game 1", e.pt_current_game() === 1);
 
-// Every game must survive 300 frames of wiggly tilt + button mashing and draw.
+// Every game must survive 300 frames of wiggly tilt + button mashing + a
+// shake burst (the optional accel input) and draw.
 for (let g = 0; g < count; g++) {
   e.pt_launch(g);
   for (let f = 0; f < 300; f++) {
     const btn = f % 40 === 0 ? BTN_CLICK : 0;
+    if (f % 60 < 10) e.pt_accel(Math.sin(f) * 1.2, Math.cos(f) * 1.2, Math.sin(f * 2) * 0.8);
+    else e.pt_accel(0, 0, 0);
+    e.pt_gravity(Math.sin(f / 20) * 0.8, Math.cos(f / 31) * 0.8);
     tick(Math.sin(f / 20) * 0.8, Math.cos(f / 31) * 0.8, btn);
   }
   check(`"${titles[g]}" runs 300 frames and draws`, fbLitPixels() > 20);
 }
+e.pt_accel(0, 0, 0);
+e.pt_gravity(0, 0);
 check("games produced sfx events", e.pt_sfx_head() > 0 && e.pt_sfx_ring_cap() === 16);
 
 // Holding CLICK ~0.7s pauses; the pause menu's third item is MAIN MENU.

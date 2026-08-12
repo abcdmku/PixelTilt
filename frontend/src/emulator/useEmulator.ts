@@ -20,6 +20,7 @@ import { setMusicTrack, stopMusic } from "../audio/music";
 // Keyboard contract (mirrors the hardware):
 //   Arrow keys  -> tilt (the BNO08x on the device)
 //   Q / E       -> twist the panel counter-/clockwise (yaw spin)
+//   Space       -> shake the device (random linear-acceleration burst)
 //   A / S / D   -> thumb wheel up / click / down (Enter also clicks)
 const BUTTON_KEYS: Record<string, number> = {
   KeyA: BTN_UP,
@@ -31,6 +32,13 @@ const BUTTON_KEYS: Record<string, number> = {
 const TILT_ATTACK = 6.5; // how fast held arrows ramp tilt (per second-ish)
 const TILT_RELEASE = 9.0;
 const SPIN_RATE = 3.0; // rad/s of twist while Q/E is held
+const SHAKE_G = 1.3; // peak synthetic shake amplitude while Space is held, in g
+
+// ESP32 performance emulation: one desktop-WASM millisecond of tick time is
+// treated as this many milliseconds on the 240 MHz ESP32-S3. Rough
+// calibration — desktop JIT-compiled WASM runs roughly this much faster than
+// the S3's in-order core on this kind of float-heavy code.
+const ESP32_SLOWDOWN = 20;
 
 // Settings + high scores persist in localStorage, mirroring the device's NVS.
 const SAVE_KEY = "pixeltilt.save";
@@ -68,6 +76,10 @@ export interface EmulatorState {
   /** Device settings volumes, percent (set inside the emulated settings menu). */
   sfxVolume: number;
   musicVolume: number;
+  /** ESP32 performance emulation: ticks paced on a simulated 240 MHz timeline. */
+  esp32Perf: boolean;
+  /** Simulated device frame rate while esp32Perf is on (60 = keeping up). */
+  esp32Fps: number;
 }
 
 export interface EmulatorControls {
@@ -80,6 +92,8 @@ export interface EmulatorControls {
   setVirtualButton(mask: number, down: boolean): void;
   /** Drag pad override; pass null to release back to keyboard control. */
   setPadTilt(t: { x: number; y: number } | null): void;
+  /** Toggle ESP32 performance emulation. */
+  setEsp32Perf(on: boolean): void;
 }
 
 export function useEmulator(): EmulatorState & EmulatorControls {
@@ -93,6 +107,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const [buttonsUi, setButtonsUi] = useState(0);
   const [audioOn, setAudioOn] = useState(false);
   const [volumesUi, setVolumesUi] = useState({ sfx: 80, music: 60 });
+  const [esp32Perf, setEsp32PerfState] = useState(false);
+  const [esp32Fps, setEsp32Fps] = useState(60);
 
   const emu = useRef<Emulator | null>(null);
   const keys = useRef<Set<string>>(new Set());
@@ -100,6 +116,14 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const padTilt = useRef<{ x: number; y: number } | null>(null);
   const tilt = useRef({ x: 0, y: 0 });
   const spin = useRef(0);
+  // Real device motion (phones): pseudo-force in g, screen axes; stamped so a
+  // stalled event stream decays to zero instead of sticking.
+  const motion = useRef({ x: 0, y: 0, z: 0, at: 0 });
+  // ESP32 performance emulation state (see ESP32_SLOWDOWN).
+  const esp32Ref = useRef(false);
+  const devBusyUntil = useRef(0); // host time when the simulated device frame ends
+  const pendingDt = useRef(0); // real time accumulated since the last executed tick
+  const devMs = useRef(1000 / 60); // smoothed simulated frame duration
   const pausedRef = useRef(false);
   const sfxSerial = useRef(0);
   const musicSerial = useRef(0);
@@ -137,7 +161,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
       if (ev.repeat) return;
-      const arrows = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyQ", "KeyE"];
+      const arrows = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyQ", "KeyE", "Space"];
       if (arrows.includes(ev.code) || ev.code in BUTTON_KEYS) {
         ev.preventDefault();
         if (down) keys.current.add(ev.code);
@@ -148,9 +172,25 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     const keyUp = onKey(false);
     const onBlur = () => keys.current.clear();
 
+    // Phones: devicemotion's `acceleration` is the device's kinematic
+    // acceleration a; the pseudo-force a loose object feels is -a. Map device
+    // axes (x right, y toward top of screen) onto screen axes (x right,
+    // y toward the player) and convert m/s^2 -> g.
+    const onMotion = (ev: DeviceMotionEvent) => {
+      const a = ev.acceleration;
+      if (!a || a.x == null) return;
+      motion.current = {
+        x: -a.x / 9.81,
+        y: (a.y ?? 0) / 9.81,
+        z: -(a.z ?? 0) / 9.81,
+        at: performance.now(),
+      };
+    };
+
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("devicemotion", onMotion);
     installAudioUnlock();
 
     let last = performance.now();
@@ -182,8 +222,45 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       let buttons = virtualButtons.current;
       for (const code of k) buttons |= BUTTON_KEYS[code] ?? 0;
 
+      // Shake: held Space synthesizes a noisy burst; otherwise pass through
+      // real device motion (zeroed once the event stream goes stale).
+      let ax = 0, ay = 0, az = 0;
+      if (k.has("Space")) {
+        ax = (Math.random() - 0.5) * 2 * SHAKE_G;
+        ay = (Math.random() - 0.5) * 2 * SHAKE_G;
+        az = (Math.random() - 0.5) * SHAKE_G;
+      } else if (now - motion.current.at < 250) {
+        ({ x: ax, y: ay, z: az } = motion.current);
+      }
+
       if (!pausedRef.current) {
-        m.tick(dt, tilt.current.x, tilt.current.y, spin.current, buttons);
+        // ESP32 performance emulation: each tick's real WASM cost is scaled
+        // to a simulated 240 MHz duration; while that simulated frame is
+        // still "running" no further ticks execute, and the next tick sees
+        // the stretched dt — reproducing device lag (dropped frames AND the
+        // larger timesteps the game would experience) in real time.
+        pendingDt.current += dt;
+        if (!esp32Ref.current || now >= devBusyUntil.current) {
+          const useDt = Math.min(pendingDt.current, 0.1);
+          pendingDt.current = 0;
+          m.setAccel(ax, ay, az);
+          // The physics field is tilt + shake in one vector (raw specific
+          // force, like the hardware IMU): full arrow press = vertical
+          // (1 g), and Space/devicemotion noise rides on top — swinging it
+          // past 1 g is what lifts a pile off the floor mid-shake.
+          m.setGravity(tilt.current.x + ax, tilt.current.y + ay);
+          const t0 = performance.now();
+          m.tick(useDt, tilt.current.x, tilt.current.y, spin.current, buttons);
+          if (esp32Ref.current) {
+            const frameMs = Math.max(1000 / 60, (performance.now() - t0) * ESP32_SLOWDOWN);
+            devBusyUntil.current = now + frameMs;
+            devMs.current += (frameMs - devMs.current) * 0.15;
+          } else {
+            devMs.current = 1000 / 60;
+          }
+        }
+      } else {
+        pendingDt.current = 0;
       }
 
       // Audio: drain the core's SFX ring every frame (latency matters), keep
@@ -241,6 +318,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         setTiltUi({ x: tilt.current.x, y: tilt.current.y });
         setButtonsUi(buttons);
         setAudioOn(audioUnlocked());
+        setEsp32Fps(Math.round(1000 / devMs.current));
         setVolumesUi((v) => {
           const sfx = m.sfxVolume();
           const music = m.musicVolume();
@@ -274,6 +352,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("devicemotion", onMotion);
     };
   }, []);
 
@@ -289,6 +368,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     audioOn,
     sfxVolume: volumesUi.sfx,
     musicVolume: volumesUi.music,
+    esp32Perf,
+    esp32Fps,
     registerCanvases: (main, glow) => {
       canvases.current = { main, glow };
     },
@@ -314,6 +395,12 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     setPadTilt: (t) => {
       padTilt.current = t;
       if (!t) tilt.current = { ...tilt.current }; // springs back via release rate
+    },
+    setEsp32Perf: (on) => {
+      esp32Ref.current = on;
+      devBusyUntil.current = 0;
+      devMs.current = 1000 / 60;
+      setEsp32PerfState(on);
     },
   };
 }

@@ -43,11 +43,19 @@ export function Bench() {
               </button>
               <button onClick={emu.reset}>RESET</button>
               <button onClick={emu.exitToMenu}>MENU</button>
+              <button
+                onClick={() => emu.setEsp32Perf(!emu.esp32Perf)}
+                title="Pace the simulation like a 240 MHz ESP32-S3: heavy frames stretch and drop exactly as they would on the device"
+              >
+                {emu.esp32Perf ? "ESP32 PERF: ON" : "ESP32 PERF: OFF"}
+              </button>
               <span className="bench-status">
                 <span className={`led ${emu.ready ? "on" : ""}`} />
                 <span>{emu.error ? "FAULT" : emu.ready ? "RUNNING" : "BOOT"}</span>
                 <span className="meta-div">|</span>
-                <span>{emu.fps} FPS</span>
+                <span>
+                  {emu.esp32Perf ? `SIM ${emu.esp32Fps} FPS` : `${emu.fps} FPS`}
+                </span>
               </span>
             </div>
           </section>

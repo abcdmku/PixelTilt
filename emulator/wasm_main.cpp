@@ -19,6 +19,17 @@ WASM_EXPORT(pt_tick) void pt_tick(float dt, float tiltX, float tiltY, float spin
   pt::engineTick(tiltX, tiltY, spin, (unsigned char)buttons, dt);
 }
 
+// Optional shake input (linear acceleration in g, tilt's axis convention).
+// Call before pt_tick; sticky until the next call.
+WASM_EXPORT(pt_accel) void pt_accel(float ax, float ay, float az) {
+  pt::setAccel(ax, ay, az);
+}
+
+// Optional full-range gravity (in g, 1.0 = vertical; tilt's axis convention).
+WASM_EXPORT(pt_gravity) void pt_gravity(float gx, float gy) {
+  pt::setGravity(gx, gy);
+}
+
 WASM_EXPORT(pt_framebuffer) const unsigned char* pt_framebuffer() { return pt::framebuffer; }
 WASM_EXPORT(pt_screen_w) int pt_screen_w() { return pt::SCREEN_W; }
 WASM_EXPORT(pt_screen_h) int pt_screen_h() { return pt::SCREEN_H; }
