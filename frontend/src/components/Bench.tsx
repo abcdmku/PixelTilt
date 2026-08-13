@@ -2,100 +2,77 @@ import { useEmulator } from "../emulator/useEmulator";
 import { MatrixDisplay } from "./MatrixDisplay";
 import { TiltPad } from "./TiltPad";
 import { WheelButtons } from "./WheelButtons";
-import { GameList } from "./GameList";
+import { GamePicker } from "./GamePicker";
 
-function VolumeBar({ label, percent }: { label: string; percent: number }) {
-  const cells = 5;
-  const lit = Math.round((percent / 100) * cells);
-  return (
-    <div className="volume-row">
-      <span className="volume-label">{label}</span>
-      <span className="volume-cells">
-        {Array.from({ length: cells }, (_, i) => (
-          <span key={i} className={`volume-cell ${i < lit ? "lit" : ""}`} />
-        ))}
-      </span>
-      <span className="volume-value">{percent}%</span>
-    </div>
-  );
-}
-
-/** The emulator workbench — everything that was the whole app before the
- *  Audio Lab page existed. Mounting/unmounting starts/stops the emulator. */
+/** The emulator workbench: pick a game, play it, tilt it. Mounting/unmounting
+ *  starts/stops the emulator. */
 export function Bench() {
   const emu = useEmulator();
 
+  if (emu.error) {
+    return (
+      <div className="fault">
+        <h2>NO WASM IMAGE</h2>
+        <p>{emu.error}</p>
+        <code>npm run wasm</code>
+      </div>
+    );
+  }
+
   return (
-    <>
-      {emu.error ? (
-        <div className="fault">
-          <h2>NO WASM IMAGE</h2>
-          <p>{emu.error}</p>
-          <code>npm run wasm</code>
+    <main className="bench-main">
+      <div className="toolbar">
+        <GamePicker
+          titles={emu.titles}
+          currentGame={emu.currentGame}
+          launch={emu.launch}
+          exitToMenu={emu.exitToMenu}
+        />
+        <div className="toolbar-actions">
+          <button className="tb" onClick={() => emu.setPaused(!emu.paused)}>
+            {emu.paused ? "▶ RESUME" : "❚❚ PAUSE"}
+          </button>
+          <button className="tb" onClick={emu.reset} title="Restart the engine (scores and settings are kept)">
+            ↺ RESET
+          </button>
+          <button
+            className={`tb toggle ${emu.esp32Perf ? "on" : ""}`}
+            onClick={() => emu.setEsp32Perf(!emu.esp32Perf)}
+            title="Pace the simulation like a 240 MHz ESP32-S3: heavy frames stretch and drop exactly as they would on the device"
+          >
+            ESP32 SPEED
+          </button>
+          <span className="status" title={emu.esp32Perf ? "Simulated device frame rate" : "Emulator frame rate"}>
+            <span className={`led ${emu.ready && !emu.paused ? "on" : ""}`} />
+            {emu.ready ? `${emu.esp32Perf ? emu.esp32Fps : emu.fps} FPS` : "BOOTING"}
+          </span>
         </div>
-      ) : (
-        <main className="bench-main">
-          <section className="stage">
-            <MatrixDisplay registerCanvas={emu.registerCanvas} />
-            <div className="transport">
-              <button onClick={() => emu.setPaused(!emu.paused)}>
-                {emu.paused ? "RESUME" : "PAUSE"}
-              </button>
-              <button onClick={emu.reset}>RESET</button>
-              <button onClick={emu.exitToMenu}>MENU</button>
-              <button
-                onClick={() => emu.setEsp32Perf(!emu.esp32Perf)}
-                title="Pace the simulation like a 240 MHz ESP32-S3: heavy frames stretch and drop exactly as they would on the device"
-              >
-                {emu.esp32Perf ? "ESP32 PERF: ON" : "ESP32 PERF: OFF"}
-              </button>
-              <span className="bench-status">
-                <span className={`led ${emu.ready ? "on" : ""}`} />
-                <span>{emu.error ? "FAULT" : emu.ready ? "RUNNING" : "BOOT"}</span>
-                <span className="meta-div">|</span>
-                <span>
-                  {emu.esp32Perf ? `SIM ${emu.esp32Fps} FPS` : `${emu.fps} FPS`}
-                </span>
-              </span>
-            </div>
-          </section>
+      </div>
 
-          <aside className="console">
-            <div className="module">
-              <h2 className="module-title">GAME REGISTRY</h2>
-              <GameList
-                titles={emu.titles}
-                currentGame={emu.currentGame}
-                launch={emu.launch}
-                exitToMenu={emu.exitToMenu}
-              />
-            </div>
+      <div className="play">
+        <MatrixDisplay registerCanvas={emu.registerCanvas} />
 
-            <div className="module">
-              <h2 className="module-title">IMU · TILT</h2>
-              <TiltPad tilt={emu.tilt} setPadTilt={emu.setPadTilt} />
-              <p className="hint">ARROW KEYS OR DRAG</p>
-            </div>
+        <div className="pad-col">
+          <div className="pad-block">
+            <TiltPad tilt={emu.tilt} setPadTilt={emu.setPadTilt} />
+            <span className="cap">TILT</span>
+          </div>
+          <div className="pad-block">
+            <WheelButtons buttons={emu.buttons} setVirtualButton={emu.setVirtualButton} />
+            <span className="cap">WHEEL</span>
+          </div>
+        </div>
+      </div>
 
-            <div className="module">
-              <h2 className="module-title">INPUT</h2>
-              <WheelButtons buttons={emu.buttons} setVirtualButton={emu.setVirtualButton} />
-              <p className="hint">
-                HOLD <kbd>A</kbd>+<kbd>D</kbd> TO EXIT A GAME
-              </p>
-            </div>
+      {!emu.audioOn && <p className="audio-nudge">CLICK OR PRESS A KEY TO ENABLE SOUND</p>}
 
-            <div className="module">
-              <h2 className="module-title">AUDIO</h2>
-              <VolumeBar label="SFX" percent={emu.sfxVolume} />
-              <VolumeBar label="MUS" percent={emu.musicVolume} />
-              <p className="hint">
-                {emu.audioOn ? "SET LEVELS IN SETTINGS MENU" : "PRESS ANY KEY TO ENABLE AUDIO"}
-              </p>
-            </div>
-          </aside>
-        </main>
-      )}
-    </>
+      <p className="keys">
+        <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> TILT</span>
+        <span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> WHEEL</span>
+        <span>HOLD <kbd>S</kbd> PAUSE MENU</span>
+        <span><kbd>Q</kbd><kbd>E</kbd> SPIN</span>
+        <span><kbd>SPACE</kbd> SHAKE</span>
+      </p>
+    </main>
   );
 }

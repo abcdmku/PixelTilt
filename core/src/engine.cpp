@@ -37,6 +37,27 @@ uint8_t prevButtons = 0;
 // SCORES, row GAME_COUNT+1 is SETTINGS.
 int menuRowCount() { return GAME_COUNT + 2; }
 
+bool gameHasScores(int index) {
+  return index >= 0 && index < GAME_COUNT &&
+         GAME_LIST[index]->scoreKind != SCORE_NONE;
+}
+
+// Find the next scored registry entry, wrapping once. A negative return means
+// every registered game is an unscored toy/sandbox.
+int stepScoredGame(int from, int direction) {
+  if (GAME_COUNT <= 0) return -1;
+  int index = from;
+  for (int checked = 0; checked < GAME_COUNT; checked++) {
+    index += direction;
+    if (index < 0) index = GAME_COUNT - 1;
+    else if (index >= GAME_COUNT) index = 0;
+    if (gameHasScores(index)) return index;
+  }
+  return -1;
+}
+
+int firstScoredGame() { return stepScoredGame(-1, 1); }
+
 void intToStr(int32_t n, char* buf) {
   int i = 0;
   if (n < 0) { buf[i++] = '-'; n = -n; }
@@ -153,7 +174,7 @@ void tickMenu(float dt) {
       if (GAME_COUNT > 0) launchGame(menuCursor);
     } else if (menuCursor == GAME_COUNT) {
       state = ST_SCORES;
-      scoresCursor = 0;
+      scoresCursor = firstScoredGame();
       sfx(STYLE_CHIP, SFX_SELECT);
     } else {
       enterSettings(ST_MENU);
@@ -372,9 +393,11 @@ void tickSettings(float dt) {
 // --- scores -----------------------------------------------------------------
 
 void tickScores() {
-  if (GAME_COUNT > 0 && (input.justDown(BTN_UP) || input.justDown(BTN_DOWN))) {
-    int d = input.justDown(BTN_UP) ? GAME_COUNT - 1 : 1;
-    scoresCursor = (scoresCursor + d) % GAME_COUNT;
+  if (!gameHasScores(scoresCursor)) scoresCursor = firstScoredGame();
+  if (scoresCursor >= 0 &&
+      (input.justDown(BTN_UP) || input.justDown(BTN_DOWN))) {
+    int direction = input.justDown(BTN_UP) ? -1 : 1;
+    scoresCursor = stepScoredGame(scoresCursor, direction);
     sfx(STYLE_CHIP, SFX_BLIP);
   }
   if (input.justDown(BTN_CLICK)) {
@@ -389,6 +412,10 @@ void tickScores() {
 
   if (GAME_COUNT == 0) {
     textCentered(28, "NO GAMES", GRAY);
+    return;
+  }
+  if (scoresCursor < 0) {
+    textCentered(28, "NO SCORES", GRAY);
     return;
   }
 
@@ -449,6 +476,9 @@ void exitToMenu() {
 }
 
 int currentGame() { return runningGame; }
+int currentScoreGame() {
+  return state == ST_SCORES && gameHasScores(scoresCursor) ? scoresCursor : -1;
+}
 
 static float accelRawX = 0, accelRawY = 0, accelRawZ = 0;
 static float gravRawX = 0, gravRawY = 0;

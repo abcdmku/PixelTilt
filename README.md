@@ -112,6 +112,26 @@ or **main menu**. The main menu also has **SCORES** (top-3 table per game) and
 volume, and a high-score reset. Settings and scores persist across power
 cycles: NVS flash on the device, localStorage in the emulator.
 
+### Sand II family
+
+**Sand II** is the original rainbow granular-physics sandbox. Five related
+toys reuse its particle arena and solver, but give the material very different
+force laws and controls:
+
+| Title | Flavor | Physical controls | Emulator |
+| --- | --- | --- | --- |
+| **LAVA LAMP** | Hot, buoyant blobs | Tilt/shake; optional spin; wheel up/down adjusts **HEAT**; tap click resets | Arrows/drag; `Space`; `Q`/`E`; `A`/`D` adjust HEAT; tap `S` |
+| **SNOW GLOBE** | Drifting, turbulent flakes | Tilt/shake; optional spin; wheel up/down adjusts **WIND**; tap click resets | Arrows/drag; `Space`; `Q`/`E`; `A`/`D` adjust WIND; tap `S` |
+| **STAR FORGE** | Dust orbiting a gravity well | Tilt/shake; optional spin; wheel up/down adjusts **PULL**; tap click resets | Arrows/drag; `Space`; `Q`/`E`; `A`/`D` adjust PULL; tap `S` |
+| **FERROFLOW** | Grains drawn between magnetic poles | Tilt/shake; optional spin; wheel up/down adjusts **POLE**; tap click resets | Arrows/drag; `Space`; `Q`/`E`; `A`/`D` adjust POLE; tap `S` |
+| **NEON GAS** | Fast, luminous particles | Tilt/shake; optional spin; wheel up/down adjusts **POWER**; tap click resets | Arrows/drag; `Space`; `Q`/`E`; `A`/`D` adjust POWER; tap `S` |
+
+Tap actions fire on a short click release. Holding the wheel press for about
+0.7 seconds still opens the pause menu without also resetting the toy (hold
+`S` in the emulator). The six menu entries share one fixed simulation
+workspace and compact flavor profiles, so they do not multiply Sand II's RAM
+or per-frame solver budget.
+
 The emulator plays the games' sound effects and background music through Web
 Audio (press any key/click once to satisfy the browser's autoplay gate). The
 **AUDIO LAB** page (top-right nav) has two extras: a browser for the core's
@@ -254,8 +274,9 @@ LEDs are ([`frontend/src/emulator/panel.ts`](frontend/src/emulator/panel.ts)).
 What crushes to black in the browser crushes to black on the hardware, so the
 bench is a fair place to pick colors.
 
-Ships with three examples: **Tilt Maze** (roll to the goal, avoid holes),
-**Snake** (dominant tilt axis steers), **Breakout** (tilt = paddle position).
+Highlights include **Tilt Maze** (roll to the goal, avoid holes), **Snake**
+(dominant tilt axis steers), **Breakout** (tilt = paddle position), and the
+shared-runtime **Sand II** family described above.
 
 ## Repo layout
 

@@ -205,4 +205,4 @@ void update(float dt) {
 
 }  // namespace
 
-PT_GAME(sand, "SAND", init, update)
+PT_GAME_UNSCORED(sand, "SAND", init, update)

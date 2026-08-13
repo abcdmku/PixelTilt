@@ -63,56 +63,187 @@ body::after {
   flex: 1;
   display: flex;
   flex-direction: column;
-  max-width: 1180px;
+  max-width: 1080px;
   width: 100%;
   margin: 0 auto;
-  padding: 20px 28px;
-  gap: 18px;
+  padding: 16px 24px 24px;
+  gap: 16px;
 }
 
 /* ---------- header ---------- */
 
 .bench-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--line-bright);
-  padding-bottom: 14px;
+  gap: 12px;
 }
 
-.title-block h1 {
+.bench-header h1 {
   font-family: var(--font-pixel);
-  font-size: 30px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: 2px;
-  color: var(--ink);
   line-height: 1;
   text-shadow: 0 0 24px rgba(255, 176, 0, 0.25);
 }
 
-.title-block .accent {
+.bench-header .accent {
   color: var(--amber);
 }
 
-.subtitle {
-  display: block;
-  margin-top: 6px;
-  font-size: 10px;
-  letter-spacing: 2.5px;
-  color: var(--ink-dim);
+.bench-nav {
+  display: flex;
+  gap: 6px;
 }
 
-.header-meta {
+.bench-nav a {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-decoration: none;
+  color: var(--ink-dim);
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 12px 5px;
+  transition: all 0.1s ease;
+}
+
+.bench-nav a:hover {
+  color: var(--ink);
+  border-color: var(--line-bright);
+}
+
+.bench-nav a.active {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.08);
+}
+
+/* ---------- bench layout ---------- */
+
+.bench-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise 0.4s ease-out both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Panel + controls: pad beside the game on desktop, under it on mobile. */
+.play {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  color: var(--ink-dim);
+  justify-content: center;
+  gap: 24px;
 }
 
-.meta-div {
-  color: var(--ink-faint);
+/* ---------- toolbar ---------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.picker-label {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--amber);
+}
+
+.picker-select {
+  appearance: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  background-color: var(--panel-pcb);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23ffb000'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  padding: 7px 30px 7px 12px;
+  min-width: 200px;
+  max-width: 100%;
+  cursor: pointer;
+  transition: border-color 0.1s ease;
+}
+
+.picker-select:hover,
+.picker-select:focus-visible {
+  border-color: var(--amber-dim);
+  outline: none;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tb {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  background: var(--panel-pcb);
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  padding: 8px 12px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.08s ease;
+}
+
+.tb:hover {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+.tb:active {
+  transform: translateY(1px);
+}
+
+.tb.toggle {
+  color: var(--ink-dim);
+  border-color: var(--line);
+}
+
+.tb.toggle.on {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--ink-dim);
+  padding-left: 2px;
+  min-width: 74px;
 }
 
 .led {
@@ -121,6 +252,7 @@ body::after {
   border-radius: 50%;
   background: #333;
   border: 1px solid #000;
+  flex: none;
 }
 
 .led.on {
@@ -133,35 +265,14 @@ body::after {
   50% { box-shadow: 0 0 3px var(--green); }
 }
 
-/* ---------- layout ---------- */
-
-.bench-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 22px;
-  align-items: start;
-  animation: rise 0.5s ease-out both;
-}
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-}
-
-/* ---------- stage / panel ---------- */
-
-.stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
+/* ---------- panel ---------- */
 
 .panel-bezel {
   position: relative;
   background: linear-gradient(160deg, #1b1e24, #101216 70%);
   border: 1px solid var(--line-bright);
   border-radius: 10px;
-  padding: 22px 22px 12px;
+  padding: 16px;
   box-shadow:
     0 24px 60px -18px rgba(0, 0, 0, 0.9),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -169,21 +280,21 @@ body::after {
 
 .bezel-hole {
   position: absolute;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #3d4350, #0a0b0e 70%);
   border: 1px solid #000;
 }
 
-.bezel-hole.tl { top: 7px; left: 7px; }
-.bezel-hole.tr { top: 7px; right: 7px; }
-.bezel-hole.bl { bottom: 7px; left: 7px; }
-.bezel-hole.br { bottom: 7px; right: 7px; }
+.bezel-hole.tl { top: 5px; left: 5px; }
+.bezel-hole.tr { top: 5px; right: 5px; }
+.bezel-hole.bl { bottom: 5px; left: 5px; }
+.bezel-hole.br { bottom: 5px; right: 5px; }
 
 .panel-face {
   position: relative;
-  width: min(512px, 62vw);
+  width: min(560px, 58vh, 60vw);
   aspect-ratio: 1;
   /* Unlit panel: black mask with the LED dies faintly visible in it — the
      same 64x64 grid the canvases draw on, so dark pixels read as an LED that
@@ -205,173 +316,46 @@ body::after {
   height: 100%;
 }
 
-.bezel-label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 10px;
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--ink-faint);
-}
+/* ---------- controls (tilt pad + wheel) ---------- */
 
-.bezel-brand {
-  font-family: var(--font-pixel);
-  color: var(--amber-dim);
-}
-
-/* ---------- transport ---------- */
-
-.transport {
-  display: flex;
-  gap: 10px;
-}
-
-.transport button {
-  font-family: var(--font-pixel);
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--ink);
-  background: var(--bg-raise);
-  border: 1px solid var(--line-bright);
-  border-bottom-width: 3px;
-  border-radius: 6px;
-  padding: 8px 18px 6px;
-  cursor: pointer;
-  transition: all 0.08s ease;
-}
-
-.transport button:hover {
-  color: var(--amber);
-  border-color: var(--amber-dim);
-}
-
-.transport button:active {
-  transform: translateY(2px);
-  border-bottom-width: 1px;
-}
-
-/* ---------- console modules ---------- */
-
-.console {
+.pad-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 18px;
 }
 
-.module {
-  background: var(--bg-raise);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px 14px 14px;
-}
-
-.module-title {
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 2px;
-  color: var(--amber);
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px dashed var(--line);
-}
-
-.hint {
-  margin-top: 10px;
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--ink-faint);
-  text-align: center;
-}
-
-kbd {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink);
-  background: var(--panel-pcb);
-  border: 1px solid var(--line-bright);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  padding: 1px 5px;
-}
-
-/* ---------- game list ---------- */
-
-.game-list {
+.pad-block {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.game-row {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--ink-dim);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 7px 10px;
-  cursor: pointer;
-  transition: all 0.1s ease;
+  gap: 7px;
 }
 
-.game-row:hover {
-  color: var(--ink);
-  background: rgba(255, 176, 0, 0.06);
-  border-color: var(--line);
-}
-
-.game-row.current {
-  color: var(--ink);
-  background: rgba(255, 176, 0, 0.1);
-  border-color: var(--amber-dim);
-}
-
-.game-index {
-  color: var(--ink-faint);
-  font-size: 10px;
-}
-
-.game-row.current .game-index {
-  color: var(--amber);
-}
-
-.game-name {
-  flex: 1;
-}
-
-.game-live {
+.cap {
   font-family: var(--font-pixel);
   font-size: 8px;
-  color: var(--green);
-  animation: blink 1.6s steps(2) infinite;
+  letter-spacing: 2px;
+  color: var(--ink-faint);
 }
-
-@keyframes blink {
-  50% { opacity: 0.25; }
-}
-
-/* ---------- tilt pad ---------- */
 
 .tilt-pad {
   position: relative;
-  width: 100%;
-  aspect-ratio: 1.35;
+  width: 180px;
+  aspect-ratio: 1;
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 176, 0, 0.05), transparent 65%),
+    radial-gradient(circle at 50% 50%, rgba(255, 176, 0, 0.06), transparent 65%),
     var(--panel-pcb);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  border: 1px solid var(--line-bright);
+  border-radius: 10px;
   cursor: crosshair;
   touch-action: none;
   overflow: hidden;
+  transition: border-color 0.1s ease;
+}
+
+.tilt-pad:hover {
+  border-color: var(--amber-dim);
 }
 
 .tilt-axis {
@@ -379,14 +363,14 @@ kbd {
   background: var(--line);
 }
 
-.tilt-axis.h { left: 4%; right: 4%; top: 50%; height: 1px; }
-.tilt-axis.v { top: 4%; bottom: 4%; left: 50%; width: 1px; }
+.tilt-axis.h { left: 6%; right: 6%; top: 50%; height: 1px; }
+.tilt-axis.v { top: 6%; bottom: 6%; left: 50%; width: 1px; }
 
 .tilt-ring {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 58%;
+  width: 60%;
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border: 1px dashed var(--line-bright);
@@ -395,58 +379,38 @@ kbd {
 
 .tilt-bubble {
   position: absolute;
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: radial-gradient(circle at 35% 30%, #fff, var(--amber) 45%, #7a5500 100%);
-  box-shadow: 0 0 12px rgba(255, 176, 0, 0.7);
+  box-shadow: 0 0 14px rgba(255, 176, 0, 0.7);
   pointer-events: none;
 }
-
-.tilt-readout {
-  position: absolute;
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--ink-dim);
-  pointer-events: none;
-}
-
-.tilt-readout.x { right: 8px; top: calc(50% - 14px); }
-.tilt-readout.y { left: calc(50% + 8px); bottom: 6px; }
-
-/* ---------- thumb wheel ---------- */
 
 .wheel {
   display: flex;
+  flex: none;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.wheel-track {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   background: var(--panel-pcb);
   border: 1px solid var(--line-bright);
-  border-radius: 24px;
+  border-radius: 26px;
   padding: 6px;
 }
 
 .wheel-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 128px;
+  width: 46px;
+  height: 40px;
+  font-size: 13px;
+  color: var(--ink-dim);
   background: linear-gradient(180deg, #232833, #171b23);
   border: 1px solid var(--line-bright);
-  border-radius: 18px;
-  padding: 8px 14px;
+  border-radius: 20px;
   cursor: pointer;
-  color: var(--ink-dim);
-  transition: all 0.07s ease;
   user-select: none;
+  touch-action: none;
+  transition: all 0.07s ease;
 }
 
 .wheel-btn:hover {
@@ -458,26 +422,51 @@ kbd {
   border-color: var(--amber);
   color: var(--amber);
   box-shadow: 0 0 14px rgba(255, 176, 0, 0.35), inset 0 2px 6px rgba(0, 0, 0, 0.6);
-  transform: scale(0.98);
 }
 
-.wheel-glyph {
-  font-size: 13px;
-  width: 16px;
-  text-align: center;
-}
+/* ---------- key legend / nudges ---------- */
 
-.wheel-btn kbd {
-  margin-left: auto;
-}
-
-.wheel-caption {
-  font-size: 9px;
-  letter-spacing: 2px;
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
   color: var(--ink-faint);
 }
 
-/* ---------- fault / footer ---------- */
+.keys span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-dim);
+  background: var(--panel-pcb);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+/* Touch devices drive the pad, not the keyboard — and on a narrow screen the
+   legend is just noise competing with the panel for height. */
+@media (pointer: coarse), (max-width: 640px) {
+  .keys { display: none; }
+}
+
+.audio-nudge {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--amber-dim);
+}
+
+/* ---------- fault ---------- */
 
 .fault {
   border: 1px solid var(--red);
@@ -512,103 +501,39 @@ kbd {
   padding: 6px 14px;
 }
 
-.bench-footer {
-  margin-top: auto;
+/* ---------- audio lab ---------- */
+
+.console {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--ink-faint);
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* ---------- header nav ---------- */
-
-.bench-nav {
-  display: flex;
-  gap: 6px;
-}
-
-.bench-nav a {
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-decoration: none;
-  color: var(--ink-dim);
+.module {
   background: var(--bg-raise);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 7px 14px 5px;
-  transition: all 0.1s ease;
+  border-radius: 8px;
+  padding: 12px 14px 14px;
 }
 
-.bench-nav a:hover {
-  color: var(--ink);
-  border-color: var(--line-bright);
-}
-
-.bench-nav a.active {
+.module-title {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 2px;
   color: var(--amber);
-  border-color: var(--amber-dim);
-  background: rgba(255, 176, 0, 0.08);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--line);
 }
 
-.bench-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 12px;
+.hint {
+  margin-top: 10px;
   font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--ink-dim);
+  letter-spacing: 1px;
+  color: var(--ink-faint);
+  text-align: center;
 }
-
-/* ---------- audio module (bench) ---------- */
-
-.volume-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 2px;
-}
-
-.volume-label {
-  width: 30px;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--ink-dim);
-}
-
-.volume-cells {
-  flex: 1;
-  display: flex;
-  gap: 3px;
-}
-
-.volume-cell {
-  flex: 1;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--panel-pcb);
-  border: 1px solid var(--line);
-}
-
-.volume-cell.lit {
-  background: var(--amber);
-  border-color: var(--amber-dim);
-  box-shadow: 0 0 6px rgba(255, 176, 0, 0.4);
-}
-
-.volume-value {
-  width: 34px;
-  text-align: right;
-  font-size: 10px;
-  color: var(--ink-dim);
-}
-
-/* ---------- audio lab ---------- */
 
 .lab-main {
   display: grid;
@@ -889,16 +814,57 @@ kbd {
   background: rgba(244, 81, 78, 0.08);
 }
 
-/* ---------- small screens ---------- */
+/* ---------- small screens: pad goes under the game ---------- */
 
-@media (max-width: 900px) {
-  .bench-main,
-  .lab-main {
-    grid-template-columns: 1fr;
+@media (max-width: 860px) {
+  .bench {
+    padding: 12px 14px 20px;
+    gap: 12px;
   }
 
-  .bench-footer {
+  .play {
     flex-direction: column;
-    align-items: center;
+    gap: 14px;
+  }
+
+  /* Leave room for the pad below: never let the panel eat the whole screen. */
+  .panel-face {
+    width: min(92vw, 460px, 52vh);
+  }
+
+  /* Pad on one side, wheel on the other — one thumb each. */
+  .pad-col {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 28px;
+    width: 100%;
+  }
+
+  .tilt-pad {
+    width: min(44vw, 200px);
+    flex: none;
+  }
+
+  .wheel-btn {
+    width: 54px;
+    height: 46px;
+  }
+
+  .toolbar {
+    justify-content: center;
+  }
+
+  .picker {
+    flex: 1;
+  }
+
+  .picker-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lab-main {
+    grid-template-columns: 1fr;
   }
 }

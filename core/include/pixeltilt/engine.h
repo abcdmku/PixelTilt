@@ -35,6 +35,9 @@ void setGravity(float gx, float gy);
 
 // Index into GAME_LIST of the running game, or -1 when in the menu.
 int  currentGame();
+// Tooling/introspection: index displayed by the score browser, or -1 while
+// that screen is not active. Games with SCORE_NONE are never returned.
+int currentScoreGame();
 // Programmatic launch/exit (used by the emulator UI's game list).
 void launchGame(int index);
 void exitToMenu();

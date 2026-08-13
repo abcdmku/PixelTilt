@@ -24,6 +24,9 @@ for (const dir of readdirSync(join(root, "games"), { withFileTypes: true })) {
 }
 sources.push(join("games", "generated", "game_list.cpp"));
 sources.push(join("emulator", "wasm_main.cpp"));
+// Directory enumeration order is filesystem-dependent. Stable link order
+// keeps otherwise-identical wasm builds byte-for-byte reproducible.
+sources.sort();
 
 const outDir = join(root, "frontend", "public");
 mkdirSync(outDir, { recursive: true });
@@ -40,6 +43,7 @@ const args = [
   "-Wall",
   "-Icore/include",
   "-Wl,--no-entry",
+  "-Wl,--strip-all",
   "-Wl,-zstack-size=65536",
   ...sources,
   "-o", out,

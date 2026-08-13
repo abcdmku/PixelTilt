@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BTN_CLICK,
   BTN_DOWN,
@@ -40,6 +40,11 @@ const SHAKE_G = 1.3; // peak synthetic shake amplitude while Space is held, in g
 // calibration — desktop JIT-compiled WASM runs roughly this much faster than
 // the S3's in-order core on this kind of float-heavy code.
 const ESP32_SLOWDOWN = 20;
+const FRAME_MS = 1000 / 60;
+const FRAME_DT = 1 / 60;
+const MAX_CATCH_UP_STEPS = 5;
+const MAX_FRAME_ELAPSED_MS = 100;
+const DEADLINE_EPSILON_MS = 0.5;
 
 // Settings + high scores persist in localStorage, mirroring the device's NVS.
 const SAVE_KEY = "pixeltilt.save";
@@ -74,9 +79,6 @@ export interface EmulatorState {
   buttons: number;
   /** False until the browser's autoplay gate is lifted by a click/keypress. */
   audioOn: boolean;
-  /** Device settings volumes, percent (set inside the emulated settings menu). */
-  sfxVolume: number;
-  musicVolume: number;
   /** ESP32 performance emulation: ticks paced on a simulated 240 MHz timeline. */
   esp32Perf: boolean;
   /** Simulated device frame rate while esp32Perf is on (60 = keeping up). */
@@ -107,7 +109,6 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const [tiltUi, setTiltUi] = useState({ x: 0, y: 0 });
   const [buttonsUi, setButtonsUi] = useState(0);
   const [audioOn, setAudioOn] = useState(false);
-  const [volumesUi, setVolumesUi] = useState({ sfx: 80, music: 60 });
   const [esp32Perf, setEsp32PerfState] = useState(false);
   const [esp32Fps, setEsp32Fps] = useState(60);
 
@@ -124,11 +125,75 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const esp32Ref = useRef(false);
   const devBusyUntil = useRef(0); // host time when the simulated device frame ends
   const pendingDt = useRef(0); // real time accumulated since the last executed tick
-  const devMs = useRef(1000 / 60); // smoothed simulated frame duration
+  const fixedLagMs = useRef(0);
   const pausedRef = useRef(false);
   const sfxSerial = useRef(0);
   const musicSerial = useRef(0);
+  const lastSfxVolume = useRef<number | null>(null);
+  const lastMusicVolume = useRef<number | null>(null);
+  const renderDirty = useRef(true);
+  const audioDirty = useRef(true);
   const canvas = useRef<HTMLCanvasElement | null>(null);
+
+  const registerCanvas = useCallback((main: HTMLCanvasElement | null) => {
+    if (canvas.current === main) return;
+    canvas.current = main;
+    if (main) renderDirty.current = true;
+  }, []);
+
+  const launch = useCallback((i: number) => {
+    emu.current?.launch(i);
+    renderDirty.current = true;
+    audioDirty.current = true;
+  }, []);
+
+  const exitToMenu = useCallback(() => {
+    emu.current?.exitToMenu();
+    renderDirty.current = true;
+    audioDirty.current = true;
+  }, []);
+
+  const reset = useCallback(() => {
+    const m = emu.current;
+    if (!m) return;
+    m.init(Date.now() & 0xffffffff);
+    restoreSave(m); // reset restarts the engine, not the player's save
+    sfxSerial.current = 0; // core serials restarted with the engine
+    musicSerial.current = 0;
+    lastSfxVolume.current = null;
+    lastMusicVolume.current = null;
+    fixedLagMs.current = 0;
+    pendingDt.current = 0;
+    devBusyUntil.current = 0;
+    renderDirty.current = true;
+    audioDirty.current = true;
+    stopMusic();
+  }, []);
+
+  const setPaused = useCallback((p: boolean) => {
+    pausedRef.current = p;
+    fixedLagMs.current = 0;
+    pendingDt.current = 0;
+    devBusyUntil.current = 0;
+    setPausedState(p);
+  }, []);
+
+  const setVirtualButton = useCallback((mask: number, down: boolean) => {
+    if (down) virtualButtons.current |= mask;
+    else virtualButtons.current &= ~mask;
+  }, []);
+
+  const setPadTilt = useCallback((t: { x: number; y: number } | null) => {
+    padTilt.current = t;
+  }, []);
+
+  const setEsp32Perf = useCallback((on: boolean) => {
+    esp32Ref.current = on;
+    fixedLagMs.current = 0;
+    pendingDt.current = 0;
+    devBusyUntil.current = 0;
+    setEsp32PerfState(on);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +260,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     const frame = (now: number) => {
       const m = emu.current;
       if (!m) return;
-      const dt = Math.min((now - last) / 1000, 0.1);
+      const elapsedMs = Math.min(Math.max(now - last, 0), MAX_FRAME_ELAPSED_MS);
+      const dt = elapsedMs / 1000;
       last = now;
 
       // Smooth keyboard tilt toward its target; a pad drag overrides it.
@@ -227,49 +293,76 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         ({ x: ax, y: ay, z: az } = motion.current);
       }
 
-      if (!pausedRef.current) {
-        // ESP32 performance emulation: each tick's real WASM cost is scaled
-        // to a simulated 240 MHz duration; while that simulated frame is
-        // still "running" no further ticks execute, and the next tick sees
-        // the stretched dt — reproducing device lag (dropped frames AND the
-        // larger timesteps the game would experience) in real time.
-        pendingDt.current += dt;
-        if (!esp32Ref.current || now >= devBusyUntil.current) {
-          const useDt = Math.min(pendingDt.current, 0.1);
+      let tickCount = 0;
+      const runTick = (tickDt: number) => {
+        m.setAccel(ax, ay, az);
+        // The physics field is tilt + shake in one vector (raw specific
+        // force, like the hardware IMU): full arrow press = vertical
+        // (1 g), and Space/devicemotion noise rides on top.
+        m.setGravity(tilt.current.x + ax, tilt.current.y + ay);
+        m.tick(tickDt, tilt.current.x, tilt.current.y, spin.current, buttons);
+        tickCount++;
+      };
+
+      if (pausedRef.current) {
+        fixedLagMs.current = 0;
+        pendingDt.current = 0;
+        devBusyUntil.current = 0;
+      } else if (esp32Ref.current) {
+        fixedLagMs.current = 0;
+        pendingDt.current = Math.min(0.1, pendingDt.current + dt);
+        const due = devBusyUntil.current;
+        if (due === 0 || now + DEADLINE_EPSILON_MS >= due) {
+          const useDt = pendingDt.current;
           pendingDt.current = 0;
-          m.setAccel(ax, ay, az);
-          // The physics field is tilt + shake in one vector (raw specific
-          // force, like the hardware IMU): full arrow press = vertical
-          // (1 g), and Space/devicemotion noise rides on top — swinging it
-          // past 1 g is what lifts a pile off the floor mid-shake.
-          m.setGravity(tilt.current.x + ax, tilt.current.y + ay);
           const t0 = performance.now();
-          m.tick(useDt, tilt.current.x, tilt.current.y, spin.current, buttons);
-          if (esp32Ref.current) {
-            const frameMs = Math.max(1000 / 60, (performance.now() - t0) * ESP32_SLOWDOWN);
-            devBusyUntil.current = now + frameMs;
-            devMs.current += (frameMs - devMs.current) * 0.15;
-          } else {
-            devMs.current = 1000 / 60;
-          }
+          runTick(useDt);
+          const frameMs = Math.max(FRAME_MS, (performance.now() - t0) * ESP32_SLOWDOWN);
+          // Advance from the previous deadline so a slightly late rAF does
+          // not turn a 17 ms simulated frame into a 33 ms frame.
+          const base = due !== 0 && now - due <= MAX_FRAME_ELAPSED_MS ? due : now;
+          devBusyUntil.current = base + frameMs;
         }
       } else {
         pendingDt.current = 0;
+        devBusyUntil.current = 0;
+        fixedLagMs.current += elapsedMs;
+        while (fixedLagMs.current >= FRAME_MS && tickCount < MAX_CATCH_UP_STEPS) {
+          runTick(FRAME_DT);
+          fixedLagMs.current -= FRAME_MS;
+        }
+        // Drop excess whole steps after a suspended tab or long stall. Keep
+        // the fractional phase so ordinary pacing remains smooth.
+        if (fixedLagMs.current >= FRAME_MS) fixedLagMs.current %= FRAME_MS;
       }
 
-      // Audio: drain the core's SFX ring every frame (latency matters), keep
-      // the bus volumes in sync with the device settings, and follow the
-      // engine's music-track requests.
-      const drained = m.drainSfx(sfxSerial.current);
-      sfxSerial.current = drained.head;
-      for (const p of drained.patches) playPatch(p);
-      setSfxVolume(m.sfxVolume());
-      setMusicVolume(m.musicVolume());
-      if (m.musicSerial() !== musicSerial.current) {
-        musicSerial.current = m.musicSerial();
-        setMusicTrack(m.musicTrack());
+      // External controls can change audio while paused. Otherwise there is
+      // nothing new to read unless the core executed a tick.
+      if (tickCount > 0 || audioDirty.current) {
+        const drained = m.drainSfx(sfxSerial.current);
+        sfxSerial.current = drained.head;
+        for (const p of drained.patches) playPatch(p);
+
+        const sfxVolume = m.sfxVolume();
+        if (sfxVolume !== lastSfxVolume.current) {
+          lastSfxVolume.current = sfxVolume;
+          setSfxVolume(sfxVolume);
+        }
+        const musicVolume = m.musicVolume();
+        if (musicVolume !== lastMusicVolume.current) {
+          lastMusicVolume.current = musicVolume;
+          setMusicVolume(musicVolume);
+        }
+        const nextMusicSerial = m.musicSerial();
+        if (nextMusicSerial !== musicSerial.current) {
+          musicSerial.current = nextMusicSerial;
+          setMusicTrack(m.musicTrack());
+        }
+        audioDirty.current = false;
       }
 
+      const main = canvas.current;
+      if (main && (tickCount > 0 || renderDirty.current)) {
       // Blit framebuffer -> 64x64 staging -> the LED grid, through the
       // panel's real color pipeline: CIE 1931 curve, 8-bit BCM duty, then the
       // brightness setting as an OE dim (see emulator/panel.ts). Dark codes
@@ -311,8 +404,6 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       body.ctx.putImageData(bodyImage, 0, 0);
       core.ctx.putImageData(coreImage, 0, 0);
 
-      const main = canvas.current;
-      if (main) {
         const size = main.width;
         const ctx = main.getContext("2d")!;
         if (!bodyMask || bodyMask.width !== size) {
@@ -337,10 +428,11 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         ctx.globalCompositeOperation = "lighter";
         ctx.drawImage(scratch, 0, 0);
         ctx.globalCompositeOperation = "source-over";
+        renderDirty.current = false;
       }
       // Cheap UI sync ~10 Hz so React isn't re-rendering at 60 fps.
       fpsAccum += dt;
-      fpsFrames++;
+      fpsFrames += tickCount;
       uiSync += dt;
       if (uiSync > 0.1) {
         uiSync = 0;
@@ -349,13 +441,11 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         setTiltUi({ x: tilt.current.x, y: tilt.current.y });
         setButtonsUi(buttons);
         setAudioOn(audioUnlocked());
-        setEsp32Fps(Math.round(1000 / devMs.current));
-        setVolumesUi((v) => {
-          const sfx = m.sfxVolume();
-          const music = m.musicVolume();
-          return v.sfx === sfx && v.music === music ? v : { sfx, music };
-        });
-        if (fpsAccum > 0) setFps(Math.round(fpsFrames / fpsAccum));
+        if (fpsAccum > 0) {
+          const measuredFps = Math.round(fpsFrames / fpsAccum);
+          setFps(measuredFps);
+          setEsp32Fps(measuredFps);
+        }
         fpsAccum = 0;
         fpsFrames = 0;
       }
@@ -369,6 +459,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         emu.current = m;
         m.init(Date.now() & 0xffffffff);
         restoreSave(m);
+        renderDirty.current = true;
+        audioDirty.current = true;
         setTitles(m.titles);
         setReady(true);
         last = performance.now();
@@ -397,41 +489,15 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     tilt: tiltUi,
     buttons: buttonsUi,
     audioOn,
-    sfxVolume: volumesUi.sfx,
-    musicVolume: volumesUi.music,
     esp32Perf,
     esp32Fps,
-    registerCanvas: (main) => {
-      canvas.current = main;
-    },
-    launch: (i) => emu.current?.launch(i),
-    exitToMenu: () => emu.current?.exitToMenu(),
-    reset: () => {
-      const m = emu.current;
-      if (!m) return;
-      m.init(Date.now() & 0xffffffff);
-      restoreSave(m); // reset restarts the engine, not the player's save
-      sfxSerial.current = 0; // core serials restarted with the engine
-      musicSerial.current = 0;
-      stopMusic();
-    },
-    setPaused: (p) => {
-      pausedRef.current = p;
-      setPausedState(p);
-    },
-    setVirtualButton: (mask, down) => {
-      if (down) virtualButtons.current |= mask;
-      else virtualButtons.current &= ~mask;
-    },
-    setPadTilt: (t) => {
-      padTilt.current = t;
-      if (!t) tilt.current = { ...tilt.current }; // springs back via release rate
-    },
-    setEsp32Perf: (on) => {
-      esp32Ref.current = on;
-      devBusyUntil.current = 0;
-      devMs.current = 1000 / 60;
-      setEsp32PerfState(on);
-    },
+    registerCanvas,
+    launch,
+    exitToMenu,
+    reset,
+    setPaused,
+    setVirtualButton,
+    setPadTilt,
+    setEsp32Perf,
   };
 }

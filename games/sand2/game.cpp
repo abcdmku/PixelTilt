@@ -22,9 +22,11 @@
 // isn't pure field. CLICK resets the rainbow. In the emulator: arrows tilt,
 // Space shakes, Q/E spin.
 #include "pixeltilt/pixeltilt.h"
+#include "pixeltilt/sand2.h"
 
 using namespace pt;
 
+namespace pt {
 namespace {
 
 constexpr int W = 64, H = 64;
@@ -52,6 +54,19 @@ constexpr float DIAM = 1.0f;         // particle contact distance, px
 constexpr float MU = 0.16f;
 constexpr float WALL_MU = 0.18f;
 
+Sand2Flavor activeFlavor = SAND2_CLASSIC;
+int activeN = NP;
+int flavorLevel = 0;               // UP/DOWN tune the current material
+float flavorTime = 0.0f;
+float clickTime = -1.0f;           // short release resets; a hold remains pause-only
+float contactMu = MU;
+float wallMu = WALL_MU;
+float bulkDrag = 0.3f;
+float gravityScale = 1.0f;
+float rotationScale = ROT_SCALE;
+float velocityMax = VMAX;
+bool gridPrimed = false;
+
 float pxs[NP], pys[NP];              // positions (px, sub-pixel)
 float vxs[NP], vys[NP];              // velocities (px/s)
 float oxs[NP], oys[NP];              // substep-start positions
@@ -75,7 +90,6 @@ float fdirX, fdirY;
 float rotOmega, prevOmega, rotAlpha;
 
 // Solver effort inputs only — there is no sleep or settle state.
-float maxSp;    // fastest grain last frame (picks the substep count)
 int   deepOv;   // deep overlaps last frame (backs off sweeps during a crush)
 
 // Zero-compression bookkeeping (see decompress()).
@@ -89,22 +103,86 @@ int8_t   ringX[168], ringY[168];  // offsets |dx|,|dy| <= 6, sorted by distance
 int      ringN;
 int16_t  lastReloc[NP];   // where each grain was relocated to last frame
 
-void resetField() {
-  int i = 0;
-  for (int y = 0; y < ROWS; y++)
-    for (int x = 0; x < W; x++, i++) {
-      pxs[i] = x + 0.5f;
-      pys[i] = y + 0.5f;
-      vxs[i] = 0;
-      vys[i] = 0;
-      float hue = x * 330.0f / (W - 1) + randRange(-8, 8);
-      col[i] = hsv(hue, 0.95f, 0.7f + 0.3f * randf());
-    }
+void seedGrain(int i, float x, float y) {
+  pxs[i] = x;
+  pys[i] = y;
+  vxs[i] = vys[i] = 0.0f;
+  float hue = 0.0f, sat = 0.9f, val = 0.9f;
+  switch (activeFlavor) {
+    case SAND2_LAVA:
+      hue = 4.0f + float((i * 17) % 48); sat = 1.0f; val = 0.65f + 0.35f * randf(); break;
+    case SAND2_SNOW:
+      hue = 185.0f + float((i * 7) % 35); sat = 0.25f; val = 0.75f + 0.25f * randf(); break;
+    case SAND2_STAR:
+      hue = 205.0f + float((i * 29) % 95); sat = 0.8f; val = 0.65f + 0.35f * randf(); break;
+    case SAND2_FERRO:
+      hue = 155.0f + float((i * 11) % 55); sat = 0.85f; val = 0.55f + 0.4f * randf(); break;
+    case SAND2_NEON:
+      hue = float((i * 97) % 360); sat = 1.0f; val = 0.8f + 0.2f * randf(); break;
+    default:
+      hue = x * 330.0f / (W - 1) + randRange(-8, 8); sat = 0.95f; val = 0.7f + 0.3f * randf(); break;
+  }
+  col[i] = hsv(hue, sat, val);
 }
 
-void init() {
-  setSfxStyle(STYLE_SOFT);
-  music(MUS_CHILL);
+void resetField() {
+  int i = 0;
+  if (activeFlavor == SAND2_SNOW || activeFlavor == SAND2_NEON) {
+    int cols = activeFlavor == SAND2_NEON ? 24 : 32;
+    float sx = 62.0f / float(cols - 1);
+    int rows = (activeN + cols - 1) / cols;
+    float sy = 58.0f / float(rows - 1);
+    for (; i < activeN; i++)
+      seedGrain(i, 1.0f + float(i % cols) * sx,
+                3.0f + float(i / cols) * sy);
+  } else if (activeFlavor == SAND2_STAR) {
+    for (int y = 8; y < 56 && i < activeN; y++)
+      for (int x = 8; x < 56 && i < activeN; x++) {
+        int dx = x - 32, dy = y - 32;
+        if (dx * dx + dy * dy <= 16 * 16)
+          seedGrain(i++, x + 0.5f, y + 0.5f);
+      }
+  } else if (activeFlavor == SAND2_FERRO) {
+    for (; i < activeN; i++)
+      seedGrain(i, 2.5f + 4.0f * float(i / H), float(i % H) + 0.5f);
+  } else {
+    int rows = (activeN + W - 1) / W;
+    for (; i < activeN; i++) {
+      int row = i / W;
+      float y = activeFlavor == SAND2_LAVA ? H - rows + row + 0.5f : row + 0.5f;
+      seedGrain(i, float(i % W) + 0.5f, y);
+    }
+  }
+  gridPrimed = false;
+}
+
+void initRuntime() {
+  activeN = activeFlavor == SAND2_LAVA ? 896 :
+            activeFlavor == SAND2_SNOW ? 768 :
+            activeFlavor == SAND2_STAR ? 640 :
+            activeFlavor == SAND2_NEON ? 384 : NP;
+  contactMu = activeFlavor == SAND2_LAVA ? 0.34f :
+              activeFlavor == SAND2_SNOW ? 0.05f :
+              activeFlavor == SAND2_NEON ? 0.01f : MU;
+  wallMu = activeFlavor == SAND2_LAVA ? 0.35f :
+           activeFlavor == SAND2_NEON ? 0.02f : WALL_MU;
+  bulkDrag = activeFlavor == SAND2_LAVA ? 3.2f :
+             activeFlavor == SAND2_SNOW ? 1.6f :
+             activeFlavor == SAND2_NEON ? 0.08f : 0.3f;
+  gravityScale = activeFlavor == SAND2_LAVA ? 0.35f :
+                 activeFlavor == SAND2_SNOW ? 0.22f :
+                 activeFlavor == SAND2_STAR ? 0.05f :
+                 activeFlavor == SAND2_FERRO ? 0.08f :
+                 activeFlavor == SAND2_NEON ? 0.02f : 1.0f;
+  rotationScale = activeFlavor == SAND2_STAR ? 0.9f :
+                  activeFlavor == SAND2_NEON ? 0.2f : ROT_SCALE;
+  velocityMax = activeFlavor == SAND2_LAVA ? 115.0f :
+                activeFlavor == SAND2_SNOW ? 150.0f :
+                activeFlavor == SAND2_NEON ? 320.0f : VMAX;
+  setSfxStyle(activeFlavor == SAND2_LAVA ? STYLE_GRIT :
+              activeFlavor == SAND2_NEON ? STYLE_CHIP : STYLE_SOFT);
+  music(activeFlavor == SAND2_STAR ? MUS_TENSE :
+        activeFlavor == SAND2_NEON ? MUS_ACTION : MUS_CHILL);
   ringN = 0;
   for (int dy = -6; dy <= 6; dy++)
     for (int dx = -6; dx <= 6; dx++) {
@@ -123,8 +201,10 @@ void init() {
   rotOmega = 0;
   prevOmega = 0;
   rotAlpha = 0;
-  maxSp = 0;
   deepOv = 0;
+  flavorLevel = 0;
+  flavorTime = 0.0f;
+  clickTime = -1.0f;
   occStamp = 0;
   bfsStamp = 0;
   for (int c = 0; c < W * H; c++) { occGen[c] = 0; bfsGen[c] = 0; }
@@ -143,10 +223,16 @@ inline float rsqrt_(float x) {
 }
 
 void buildGrid() {
-  for (int c = 0; c < W * H; c++) head[c] = -1;
-  for (int i = 0; i < NP; i++) {
-    int cx = clampi(floori(pxs[i]), 0, W - 1);
-    int cy = clampi(floori(pys[i]), 0, H - 1);
+  if (!gridPrimed) {
+    for (int c = 0; c < W * H; c++) head[c] = -1;
+    gridPrimed = true;
+  } else {
+    // Only buckets touched by the prior build can be non-empty.
+    for (int i = 0; i < activeN; i++) head[cellOf[i]] = -1;
+  }
+  for (int i = 0; i < activeN; i++) {
+    int cx = clampi((int)pxs[i], 0, W - 1);
+    int cy = clampi((int)pys[i], 0, H - 1);
     int c = cy * W + cx;
     nxt[i] = head[c];
     head[c] = (int16_t)i;
@@ -210,7 +296,7 @@ inline void solvePair(int i, int j) {
     constexpr float STICK = 0.004f;   // px of slip per substep
     float k = slip2 < STICK * STICK
                   ? 0.5f
-                  : 0.5f * (MU + fminf_(0.25f, 3.0f * slip2));
+                  : 0.5f * (contactMu + fminf_(0.25f, 3.0f * slip2));
     pxs[i] -= tx * k;
     pys[i] -= ty * k;
     pxs[j] += tx * k;
@@ -231,9 +317,9 @@ void decompress() {
     occStamp = 1;
   }
   int nclump = 0;
-  for (int i = 0; i < NP; i++) {
-    int cx = clampi(floori(pxs[i]), 0, W - 1);
-    int cy = clampi(floori(pys[i]), 0, H - 1);
+  for (int i = 0; i < activeN; i++) {
+    int cx = clampi((int)pxs[i], 0, W - 1);
+    int cy = clampi((int)pys[i], 0, H - 1);
     int c = cy * W + cx;
     if (occGen[c] != occStamp) {
       occGen[c] = occStamp;
@@ -248,8 +334,8 @@ void decompress() {
   // exists, so relocation cannot fail.
   for (int p = 0; p < nclump; p++) {
     int i = clumped[p];
-    int scx = clampi(floori(pxs[i]), 0, W - 1);
-    int scy = clampi(floori(pys[i]), 0, H - 1);
+    int scx = clampi((int)pxs[i], 0, W - 1);
+    int scy = clampi((int)pys[i], 0, H - 1);
     bool placed = false;
     // Hysteresis: a grain that had to be relocated last frame reclaims the
     // SAME cell if it is still free and still adjacent. Without this the
@@ -305,14 +391,53 @@ void decompress() {
 }
 
 void draw() {
-  clear(rgb(3, 4, 10));
-  for (int i = 0; i < NP; i++) pixel(floori(pxs[i]), floori(pys[i]), col[i]);
+  Color bg = activeFlavor == SAND2_LAVA ? rgb(12, 1, 0) :
+             activeFlavor == SAND2_SNOW ? rgb(3, 10, 18) :
+             activeFlavor == SAND2_STAR ? rgb(0, 0, 7) :
+             activeFlavor == SAND2_FERRO ? rgb(1, 9, 7) :
+             activeFlavor == SAND2_NEON ? rgb(9, 0, 14) : rgb(3, 4, 10);
+  clear(bg);
+  for (int i = 0; i < activeN; i++) pixel((int)pxs[i], (int)pys[i], col[i]);
+  const char* label = activeFlavor == SAND2_LAVA ? "HEAT" :
+                      activeFlavor == SAND2_SNOW ? "WIND" :
+                      activeFlavor == SAND2_STAR ? "PULL" :
+                      activeFlavor == SAND2_FERRO ? "POLE" :
+                      activeFlavor == SAND2_NEON ? "POWER" : nullptr;
+  if (label) {
+    text(1, 1, label, rgb(210, 220, 255));
+    for (int k = -2; k <= 2; k++)
+      pixel(54 + (k + 2) * 2, 2, k <= flavorLevel ? rgb(255, 240, 80) : rgb(45, 45, 60));
+  }
+  if (activeFlavor == SAND2_STAR) fillCircle(32, 32, 2, rgb(255, 190, 45));
+  if (activeFlavor == SAND2_FERRO) {
+    fillCircle(10, 32, 2, rgb(255, 70, 100));
+    fillCircle(53, 32, 2, rgb(80, 140, 255));
+  }
+  if (activeFlavor == SAND2_NEON) {
+    hline(0, 63, 64, rgb(80, 0, 120));
+    vline(63, 0, 64, rgb(80, 0, 120));
+  }
 }
 
-void update(float dt) {
-  if (input.justDown(BTN_CLICK)) {
-    resetField();
-    sfx(SFX_SELECT);
+void updateRuntime(float dt) {
+  flavorTime += dt;
+  if (input.justDown(BTN_UP)) {
+    flavorLevel = mini(2, flavorLevel + 1);
+    sfx(SFX_BLIP);
+  }
+  if (input.justDown(BTN_DOWN)) {
+    flavorLevel = maxi(-2, flavorLevel - 1);
+    sfx(SFX_BLIP);
+  }
+  if (input.justDown(BTN_CLICK)) clickTime = 0.0f;
+  if (clickTime >= 0.0f && input.held(BTN_CLICK)) clickTime += dt;
+  if (input.justUp(BTN_CLICK)) {
+    bool shortClick = clickTime >= 0.0f && clickTime < 0.35f;
+    clickTime = -1.0f;
+    if (shortClick) {
+      resetField();
+      sfx(SFX_SELECT);
+    }
   }
 
   // The field: raw specific force in g, zero extra filtering. A tiny
@@ -325,8 +450,10 @@ void update(float dt) {
     float sc = FIELD_MAX / mag;
     gvx *= sc;
     gvy *= sc;
+    mag = FIELD_MAX;
   }
-  float fgx = gvx * PX_PER_G, fgy = gvy * PX_PER_G;
+  float fgx = gvx * PX_PER_G * gravityScale;
+  float fgy = gvy * PX_PER_G * gravityScale;
   if (mag > 0.05f) { fdirX = gvx / mag; fdirY = gvy / mag; }
   else             { fdirX = 0; fdirY = 0; }
 
@@ -355,7 +482,7 @@ void update(float dt) {
   if (am > 0.12f) {
     float ik = 1500.0f * (am - 0.12f) / am * dt;
     float ix = input.accelX * ik, iy = input.accelY * ik;
-    for (int i = 0; i < NP; i++) {
+    for (int i = 0; i < activeN; i++) {
       float j = 0.7f + 0.6f * randf();
       vxs[i] += ix * j;
       vys[i] += iy * j;
@@ -370,7 +497,7 @@ void update(float dt) {
     float amp = fminf_(jolt - 0.35f, 1.5f) * 700.0f * dt;
     float ux = 0, uy = 0;
     if (mag > 0.05f) { ux = -gvx / mag; uy = -gvy / mag; }
-    for (int i = 0; i < NP; i++) {
+    for (int i = 0; i < activeN; i++) {
       float k = amp * (0.4f + randf());
       vxs[i] += ux * k + (randf() - 0.5f) * amp;
       vys[i] += uy * k + (randf() - 0.5f) * amp;
@@ -396,20 +523,49 @@ void update(float dt) {
   // solver cost (14-20 ms/frame, well past the frame budget) for no visible
   // benefit. Sweeps stay at 3: that third relaxation sweep is what lets the
   // static-friction regime actually lock a resting pile.
-  int sub = 2;
+  int sub = SUBSTEPS;
   int iters = deepOv > 150 ? 2 : ITERS;
   float h = fminf_(dt, 1.0f / 30.0f) / sub;
   if (h <= 0.0f) { draw(); return; }
   // NO artificial settling anywhere. Motion is only ever removed by real
   // physics — contact friction, wall drag and inelastic collisions.
-  maxSp = 0;
   deepOv = 0;
 
   for (int s = 0; s < sub; s++) {
     // Integrate: per-particle field (uniform part + rotating-frame terms),
     // predict positions.
-    for (int i = 0; i < NP; i++) {
+    for (int i = 0; i < activeN; i++) {
       float ax = fgx, ay = fgy;
+      if (activeFlavor == SAND2_LAVA) {
+        float thermal = ((i * 37) & 255) * (1.0f / 255.0f) - 0.5f;
+        float heat = 1.0f + 0.22f * flavorLevel;
+        ay -= thermal * 760.0f * heat;
+        ax += sinf_(flavorTime * 1.4f + pys[i] * 0.13f + thermal * 5.0f) * 95.0f * heat;
+      } else if (activeFlavor == SAND2_SNOW) {
+        float wind = 72.0f * flavorLevel;
+        ax += wind + sinf_(flavorTime * 0.9f + pys[i] * 0.18f + float(i & 7)) * 42.0f;
+        ay += 35.0f;
+      } else if (activeFlavor == SAND2_STAR) {
+        float dx = 32.0f - pxs[i], dy = 32.0f - pys[i];
+        float pull = 10.0f + 3.0f * float(flavorLevel + 2);
+        ax += dx * pull - dy * (1.4f + 0.8f * flavorLevel);
+        ay += dy * pull + dx * (1.4f + 0.8f * flavorLevel);
+      } else if (activeFlavor == SAND2_FERRO) {
+        float poleX = (i & 1) ? 53.0f : 10.0f;
+        float dx = poleX - pxs[i], dy = 32.0f - pys[i];
+        float d2 = dx * dx + dy * dy + 24.0f;
+        float pole = (12500.0f + 2500.0f * flavorLevel) / d2;
+        ax += dx * pole;
+        ay += dy * pole;
+      } else if (activeFlavor == SAND2_NEON) {
+        float energy = 420.0f + 100.0f * flavorLevel;
+        ax += (randf() - 0.5f) * energy;
+        ay += (randf() - 0.5f) * energy;
+        if ((pxs[i] <= 0.51f && vxs[i] < 0) || (pxs[i] >= W - 0.51f && vxs[i] > 0))
+          vxs[i] = -vxs[i] * 0.82f;
+        if ((pys[i] <= 0.51f && vys[i] < 0) || (pys[i] >= H - 0.51f && vys[i] > 0))
+          vys[i] = -vys[i] * 0.82f;
+      }
       if (rotOmega != 0.0f || rotAlpha != 0.0f) {
         // Centrifugal + Euler only. Coriolis (∝ velocity) is deliberately
         // omitted: the omega estimate can be partially spurious while
@@ -421,8 +577,8 @@ void update(float dt) {
         // and blows the contact count — the flat-fling lag).
         float rx = pxs[i] - 32.0f, ry = pys[i] - 32.0f;
         float cf = rotOmega * rotOmega;
-        float arx = ROT_SCALE * (cf * rx + rotAlpha * ry);
-        float ary = ROT_SCALE * (cf * ry - rotAlpha * rx);
+        float arx = rotationScale * (cf * rx + rotAlpha * ry);
+        float ary = rotationScale * (cf * ry - rotAlpha * rx);
         float am2 = arx * arx + ary * ary;
         if (am2 > 1000.0f * 1000.0f) {
           float sc = 1000.0f * rsqrt_(am2);
@@ -435,8 +591,8 @@ void update(float dt) {
       float vx = vxs[i] + ax * h;
       float vy = vys[i] + ay * h;
       float sp2 = vx * vx + vy * vy;
-      if (sp2 > VMAX * VMAX) {
-        float sc = VMAX / sqrtf_(sp2);
+      if (sp2 > velocityMax * velocityMax) {
+        float sc = velocityMax * rsqrt_(sp2);
         vx *= sc;
         vy *= sc;
       }
@@ -454,7 +610,7 @@ void update(float dt) {
       // Forward half-plane sweep: own cell (later list entries only) plus
       // E, SW, S, SE neighbors — every unordered pair visited exactly once,
       // ~45% fewer probes than scanning the full 3x3 and skipping half.
-      for (int i = 0; i < NP; i++) {
+      for (int i = 0; i < activeN; i++) {
         int c = cellOf[i];
         int cx = c % W, cy = c / W;
         for (int j = nxt[i]; j >= 0; j = nxt[j]) solvePair(i, j);
@@ -474,7 +630,7 @@ void update(float dt) {
       // with the same static regime as grain contacts (a barely-creeping
       // grain sticks to the wall outright).
       constexpr float WSTICK = 0.004f;
-      for (int i = 0; i < NP; i++) {
+      for (int i = 0; i < activeN; i++) {
         bool hx = false, hy = false;
         if (pxs[i] < 0.5f)     { pxs[i] = 0.5f;     hx = true; }
         if (pxs[i] > W - 0.5f) { pxs[i] = W - 0.5f; hx = true; }
@@ -482,11 +638,11 @@ void update(float dt) {
         if (pys[i] > H - 0.5f) { pys[i] = H - 0.5f; hy = true; }
         if (hx) {
           float slip = pys[i] - oys[i];
-          pys[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : WALL_MU);
+          pys[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : wallMu);
         }
         if (hy) {
           float slip = pxs[i] - oxs[i];
-          pxs[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : WALL_MU);
+          pxs[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : wallMu);
         }
       }
     }
@@ -494,7 +650,7 @@ void update(float dt) {
     // The PBD step: velocity IS how far the constraints let you move. This
     // gives inelastic collisions, wall absorption, and clean rest (a
     // settled pile's derived velocities are ~zero) with no extra rules.
-    for (int i = 0; i < NP; i++) {
+    for (int i = 0; i < activeN; i++) {
       pxs[i] = clampf(pxs[i], 0.5f, W - 0.5f);
       pys[i] = clampf(pys[i], 0.5f, H - 0.5f);
     }
@@ -502,8 +658,8 @@ void update(float dt) {
     float invH = 1.0f / h;
     // A whisper of bulk drag (air resistance, essentially) — enough to keep
     // the integrator from gaining energy, far too little to stop a flow.
-    float damp = fmaxf_(0.0f, 1.0f - 0.3f * h);
-    for (int i = 0; i < NP; i++) {
+    float damp = fmaxf_(0.0f, 1.0f - bulkDrag * h);
+    for (int i = 0; i < activeN; i++) {
       // Contacts are dissipative: the constraint solver may redirect or slow
       // a particle freely, but may raise its speed only slower than gravity
       // can reclaim it — otherwise a compressed bed vents its overlap
@@ -529,17 +685,16 @@ void update(float dt) {
           sp2 = allow * allow;
         }
       }
-      if (sp2 > VMAX * VMAX) {
-        float sc = VMAX * rsqrt_(sp2);
+      if (sp2 > velocityMax * velocityMax) {
+        float sc = velocityMax * rsqrt_(sp2);
         vx *= sc;
         vy *= sc;
-        sp2 = VMAX * VMAX;
+        sp2 = velocityMax * velocityMax;
       }
       vx *= damp;
       vy *= damp;
       vxs[i] = vx;
       vys[i] = vy;
-      if (sp2 > maxSp * maxSp) maxSp = sqrtf_(sp2);
     }
   }
 
@@ -551,4 +706,18 @@ void update(float dt) {
 
 }  // namespace
 
-PT_GAME(sand2, "SAND II", init, update)
+void sand2Init(Sand2Flavor flavor) {
+  activeFlavor = flavor;
+  initRuntime();
+}
+
+void sand2Update(float dt) { updateRuntime(dt); }
+
+}  // namespace pt
+
+namespace {
+void init() { pt::sand2Init(pt::SAND2_CLASSIC); }
+void update(float dt) { pt::sand2Update(dt); }
+}  // namespace
+
+PT_GAME_UNSCORED(sand2, "SAND II", init, update)

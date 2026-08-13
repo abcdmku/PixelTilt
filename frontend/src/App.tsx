@@ -19,19 +19,12 @@ export default function App() {
   return (
     <div className="bench">
       <header className="bench-header">
-        <div className="title-block">
-          <h1>
-            PIXEL<span className="accent">TILT</span>
-          </h1>
-          <span className="subtitle">
-            {lab
-              ? "AUDIO LAB · SFX SYNTH + PTA CONVERTER"
-              : "HARDWARE EMULATOR · SEENGREAT HUB75-S3 · 64×64"}
-          </span>
-        </div>
+        <h1>
+          PIXEL<span className="accent">TILT</span>
+        </h1>
         <nav className="bench-nav">
           <a href="#/" className={lab ? "" : "active"}>
-            BENCH
+            EMULATOR
           </a>
           <a href="#/audio" className={lab ? "active" : ""}>
             AUDIO LAB
@@ -40,11 +33,6 @@ export default function App() {
       </header>
 
       {lab ? <AudioLab /> : <Bench />}
-
-      <footer className="bench-footer">
-        <span>ESP32-S3-WROOM-1-N16R8 · BNO08X IMU · PCA9557 KEYS</span>
-        <span>SAME BYTES ON DEVICE AND BROWSER — ONE C++ CORE</span>
-      </footer>
     </div>
   );
 }

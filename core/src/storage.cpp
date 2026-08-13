@@ -9,7 +9,6 @@ namespace {
 
 // Scores are keyed by a hash of the game's directory id, so saves survive
 // games being added, removed or reordered in the menu.
-constexpr int MAX_SAVE_GAMES = 16;
 constexpr uint32_t SAVE_MAGIC = 0x50545356u;  // "PTSV"
 constexpr uint16_t SAVE_VERSION = 5;  // v5: Settings grew panelRefresh
 
@@ -22,12 +21,14 @@ struct SaveData {
   uint32_t magic;
   uint16_t version;
   Settings cfg;
-  GameSlot games[MAX_SAVE_GAMES];
+  GameSlot games[SCORE_GAME_CAPACITY];
 };
 
 SaveData save;
 bool dirty = false;
-int32_t scratch[SCORES_PER_GAME];  // fallback if MAX_SAVE_GAMES overflows
+const int32_t emptyScores[SCORES_PER_GAME] = {
+    SCORE_EMPTY, SCORE_EMPTY, SCORE_EMPTY};
+static_assert(SCORES_PER_GAME == 3, "update the canonical empty score table");
 
 uint32_t fnv1a(const char* s) {
   uint32_t h = 2166136261u;
@@ -43,18 +44,39 @@ void clearSlot(GameSlot& g) {
   for (int i = 0; i < SCORES_PER_GAME; i++) g.best[i] = SCORE_EMPTY;
 }
 
-int32_t* slotFor(int gameIndex) {
-  if (gameIndex < 0 || gameIndex >= GAME_COUNT) return scratch;
+bool pruneUnscoredSlots() {
+  bool changed = false;
+  for (int game = 0; game < GAME_COUNT; game++) {
+    if (GAME_LIST[game]->scoreKind != SCORE_NONE) continue;
+    uint32_t h = fnv1a(GAME_LIST[game]->id);
+    for (int slot = 0; slot < SCORE_GAME_CAPACITY; slot++) {
+      if (save.games[slot].idHash == h) {
+        clearSlot(save.games[slot]);
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+GameSlot* findSlot(int gameIndex) {
+  if (gameIndex < 0 || gameIndex >= GAME_COUNT) return nullptr;
   uint32_t h = fnv1a(GAME_LIST[gameIndex]->id);
-  for (int i = 0; i < MAX_SAVE_GAMES; i++)
-    if (save.games[i].idHash == h) return save.games[i].best;
-  for (int i = 0; i < MAX_SAVE_GAMES; i++)
+  for (int i = 0; i < SCORE_GAME_CAPACITY; i++)
+    if (save.games[i].idHash == h) return &save.games[i];
+  return nullptr;
+}
+
+GameSlot* ensureSlot(int gameIndex) {
+  if (GameSlot* existing = findSlot(gameIndex)) return existing;
+  if (gameIndex < 0 || gameIndex >= GAME_COUNT) return nullptr;
+  uint32_t h = fnv1a(GAME_LIST[gameIndex]->id);
+  for (int i = 0; i < SCORE_GAME_CAPACITY; i++)
     if (save.games[i].idHash == 0) {
       save.games[i].idHash = h;
-      return save.games[i].best;
+      return &save.games[i];
     }
-  for (int i = 0; i < SCORES_PER_GAME; i++) scratch[i] = SCORE_EMPTY;
-  return scratch;
+  return nullptr;
 }
 
 void applySettings() {
@@ -75,7 +97,7 @@ void storageInit() {
   save.cfg.panelRefresh = 2;  // 250 Hz: the fastest clean rate measured on the
                               // Seengreat panel (higher needs a faster pixel
                               // clock, which ghosts on this hardware).
-  for (int i = 0; i < MAX_SAVE_GAMES; i++) clearSlot(save.games[i]);
+  for (int i = 0; i < SCORE_GAME_CAPACITY; i++) clearSlot(save.games[i]);
   dirty = false;
   applySettings();
 }
@@ -87,13 +109,23 @@ void settingsChanged() {
   dirty = true;
 }
 
-const int32_t* gameScores(int gameIndex) { return slotFor(gameIndex); }
+const int32_t* gameScores(int gameIndex) {
+  if (gameIndex < 0 || gameIndex >= GAME_COUNT ||
+      GAME_LIST[gameIndex]->scoreKind == SCORE_NONE) {
+    return emptyScores;
+  }
+  const GameSlot* slot = findSlot(gameIndex);
+  return slot ? slot->best : emptyScores;
+}
 
 int submitScore(int32_t value) {
   int game = currentGame();
   if (game < 0 || game >= GAME_COUNT || value < 0) return -1;
+  if (GAME_LIST[game]->scoreKind == SCORE_NONE) return -1;
   bool lowerBetter = GAME_LIST[game]->scoreKind == SCORE_TIME;
-  int32_t* best = slotFor(game);
+  GameSlot* slot = ensureSlot(game);
+  if (!slot) return -1;
+  int32_t* best = slot->best;
 
   int rank = -1;
   for (int i = 0; i < SCORES_PER_GAME; i++) {
@@ -111,7 +143,7 @@ int submitScore(int32_t value) {
 }
 
 void resetAllScores() {
-  for (int i = 0; i < MAX_SAVE_GAMES; i++) clearSlot(save.games[i]);
+  for (int i = 0; i < SCORE_GAME_CAPACITY; i++) clearSlot(save.games[i]);
   dirty = true;
 }
 
@@ -131,8 +163,11 @@ bool saveBlobLoad() {
   if (save.cfg.musicVolume > 100) save.cfg.musicVolume = 60;
   save.cfg.sfxVolume -= save.cfg.sfxVolume % 20;    // snap to the menu's steps
   save.cfg.musicVolume -= save.cfg.musicVolume % 20;
+  // Older v5 builds could reserve a slot simply by opening a game's score
+  // page. Reclaim slots for games that are now explicitly scoreless.
+  bool pruned = pruneUnscoredSlots();
   applySettings();
-  dirty = false;
+  dirty = pruned;  // let the host persist the compacted blob once
   return true;
 }
 

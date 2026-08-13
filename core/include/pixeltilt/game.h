@@ -8,6 +8,7 @@ enum ScoreKind : uint8_t {
   SCORE_POINTS = 0,  // higher is better, plain number
   SCORE_TIME,        // lower is better, value in deciseconds (e.g. a speedrun)
   SCORE_LEVEL,       // higher is better, displayed as "LV n"
+  SCORE_NONE,        // toy/sandbox: no persistent scores and hidden from SCORES
 };
 
 // A game is a title for the menu, an init() called every time the game is
@@ -26,15 +27,28 @@ struct Game {
 // `npm run gen` / `npm run new-game` to refresh it).
 extern const Game* const GAME_LIST[];
 extern const int GAME_COUNT;
+// Number of entries whose scoreKind is not SCORE_NONE. Generated alongside
+// GAME_LIST and checked against the persistent score-slot capacity.
+extern const int SCORED_GAME_COUNT;
 
 }  // namespace pt
 
 // Define a game and give it external linkage under a predictable symbol name.
 // `id` must match the game's directory name under games/. Use the _SCORED
-// variant when the game's high scores aren't plain points.
-#define PT_GAME_SCORED(id, gameTitle, initFn, updateFn, kind) \
+// variant when the game's high scores aren't plain points, or _UNSCORED for a
+// toy/sandbox that must not consume a persistent score slot.
+#define PT_GAME_IMPL(id, gameTitle, initFn, updateFn, kind)   \
   extern const pt::Game pt_game_##id;                         \
   const pt::Game pt_game_##id = {#id, gameTitle, initFn, updateFn, kind};
 
+#define PT_GAME_SCORED(id, gameTitle, initFn, updateFn, kind)              \
+  static_assert((kind) == pt::SCORE_POINTS || (kind) == pt::SCORE_TIME ||  \
+                    (kind) == pt::SCORE_LEVEL,                             \
+                "use PT_GAME_UNSCORED for SCORE_NONE");                   \
+  PT_GAME_IMPL(id, gameTitle, initFn, updateFn, kind)
+
 #define PT_GAME(id, gameTitle, initFn, updateFn) \
   PT_GAME_SCORED(id, gameTitle, initFn, updateFn, pt::SCORE_POINTS)
+
+#define PT_GAME_UNSCORED(id, gameTitle, initFn, updateFn) \
+  PT_GAME_IMPL(id, gameTitle, initFn, updateFn, pt::SCORE_NONE)

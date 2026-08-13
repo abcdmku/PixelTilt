@@ -11,8 +11,10 @@
 #define WASM_EXPORT(name) __attribute__((export_name(#name))) extern "C"
 
 WASM_EXPORT(pt_init) void pt_init(unsigned seed) {
-  pt::srand_(seed ? seed : 1u);
   pt::engineInit();
+  // engineInit installs a deterministic fallback seed for platform hosts;
+  // apply the browser-provided entropy afterwards so it is not overwritten.
+  pt::srand_(seed ? seed : 1u);
 }
 
 WASM_EXPORT(pt_tick) void pt_tick(float dt, float tiltX, float tiltY, float spin, unsigned buttons) {
@@ -38,7 +40,23 @@ WASM_EXPORT(pt_game_count) int pt_game_count() { return pt::GAME_COUNT; }
 WASM_EXPORT(pt_game_title) const char* pt_game_title(int i) {
   return (i >= 0 && i < pt::GAME_COUNT) ? pt::GAME_LIST[i]->title : "";
 }
+WASM_EXPORT(pt_game_id) const char* pt_game_id(int i) {
+  return (i >= 0 && i < pt::GAME_COUNT) ? pt::GAME_LIST[i]->id : "";
+}
+WASM_EXPORT(pt_game_has_scores) int pt_game_has_scores(int i) {
+  return i >= 0 && i < pt::GAME_COUNT &&
+         pt::GAME_LIST[i]->scoreKind != pt::SCORE_NONE;
+}
+WASM_EXPORT(pt_scored_game_count) int pt_scored_game_count() {
+  return pt::SCORED_GAME_COUNT;
+}
+WASM_EXPORT(pt_score_game_capacity) int pt_score_game_capacity() {
+  return pt::SCORE_GAME_CAPACITY;
+}
 WASM_EXPORT(pt_current_game) int pt_current_game() { return pt::currentGame(); }
+WASM_EXPORT(pt_current_score_game) int pt_current_score_game() {
+  return pt::currentScoreGame();
+}
 WASM_EXPORT(pt_launch) void pt_launch(int i) { pt::launchGame(i); }
 WASM_EXPORT(pt_exit_to_menu) void pt_exit_to_menu() { pt::exitToMenu(); }
 
@@ -50,6 +68,9 @@ WASM_EXPORT(pt_save_size) int pt_save_size() { return pt::saveBlobSize(); }
 WASM_EXPORT(pt_save_loaded) int pt_save_loaded() { return pt::saveBlobLoad() ? 1 : 0; }
 WASM_EXPORT(pt_save_dirty) int pt_save_dirty() { return pt::saveDirty() ? 1 : 0; }
 WASM_EXPORT(pt_save_clear_dirty) void pt_save_clear_dirty() { pt::clearSaveDirty(); }
+WASM_EXPORT(pt_submit_score) int pt_submit_score(int value) {
+  return pt::submitScore(value);
+}
 
 // Display brightness in percent; the host applies it (panel PWM / canvas).
 WASM_EXPORT(pt_brightness) int pt_brightness() { return pt::settings().brightness; }

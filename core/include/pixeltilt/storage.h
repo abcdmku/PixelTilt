@@ -14,6 +14,9 @@ namespace pt {
 
 constexpr int SCORES_PER_GAME = 3;
 constexpr int32_t SCORE_EMPTY = -1;
+// Save format v5 reserves this many keyed score tables. Unscored games do not
+// consume a slot; the generated registry enforces that the scored subset fits.
+constexpr int SCORE_GAME_CAPACITY = 16;
 
 struct Settings {
   uint8_t rotation;      // screen quarter-turns, 0..3 (applied via setRotation)
@@ -35,7 +38,15 @@ struct Settings {
 // firmware asks the HUB75 driver for at least this rate and reports what it
 // actually achieved.
 constexpr int PANEL_REFRESH_COUNT = 4;
-constexpr uint16_t PANEL_REFRESH_HZ[PANEL_REFRESH_COUNT] = {60, 150, 250, 450};
+constexpr uint16_t PANEL_REFRESH_HZ[PANEL_REFRESH_COUNT] = {60, 150, 250, 255};
+// ESP32-HUB75-MatrixPanel-I2S-DMA 3.x stores min_refresh_rate in a uint8_t.
+// Keep this explicit so a future preset cannot silently wrap at assignment.
+constexpr bool panelRefreshFitsDriver(int i = 0) {
+  return i == PANEL_REFRESH_COUNT ||
+         (PANEL_REFRESH_HZ[i] <= 255 && panelRefreshFitsDriver(i + 1));
+}
+static_assert(panelRefreshFitsDriver(),
+              "panel refresh presets must fit the HUB75 driver's uint8_t field");
 
 // Reset everything to defaults (called from engineInit).
 void storageInit();
@@ -44,11 +55,12 @@ Settings& settings();
 // Call after mutating settings(); applies rotation and raises the dirty flag.
 void settingsChanged();
 
-// Top scores for a game, best first, SCORE_EMPTY in unused slots.
+// Top scores for a game, best first, SCORE_EMPTY in unused slots. A missing or
+// unscored table reads as all-empty; querying scores never reserves a slot.
 const int32_t* gameScores(int gameIndex);
 // Record a finished run for the currently running game. Ranking direction
 // follows the game's ScoreKind. Returns the table rank (0 = new best) or -1
-// if the score didn't make the table.
+// if the score didn't make the table or the game is SCORE_NONE.
 int submitScore(int32_t value);
 void resetAllScores();
 

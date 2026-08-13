@@ -30,6 +30,8 @@ static BNO08x imu;
 static Preferences prefs;
 static bool imuOk = false;
 static bool keysOk = false;
+static uint8_t lastKeysRaw = 0xFF;
+static uint32_t lastKeyProbeMs = 0;
 static uint32_t frameCount = 0;
 static uint8_t lastBrightness = 0;
 static uint32_t dirtySince = 0;  // millis of the first unsaved change, 0 = clean
@@ -51,6 +53,10 @@ static float instX = 0, instY = 0;
 // looking at the panel). UART-RVC mode only; stays 0 on the I2C path.
 static float spinRate = 0;
 static uint32_t lastMicros = 0;
+static uint32_t nextFrameMicros = 0;
+
+constexpr uint32_t FRAME_PERIOD_US = 16667;  // 60 Hz, absolute deadline
+constexpr uint32_t KEY_REPROBE_MS = 2000;
 
 static void setupPanel() {
   HUB75_I2S_CFG::i2s_pins pins = {
@@ -386,7 +392,25 @@ static void persistSave() {
 }
 
 static uint8_t readButtons() {
+  // A missing expander can consume Wire's full timeout. Retry it at low duty
+  // instead of stalling every frame; once it recovers, resume normal polling.
+  if (!keysOk) {
+    uint32_t now = millis();
+    if (now - lastKeyProbeMs < KEY_REPROBE_MS) {
+      lastKeysRaw = 0xFF;
+      return 0;
+    }
+    lastKeyProbeMs = now;
+    keysOk = keys.begin(PCA9557_ADDR);
+    if (!keysOk) {
+      lastKeysRaw = 0xFF;
+      return 0;
+    }
+    Serial.println("[pixeltilt] PCA9557 key expander recovered");
+  }
+
   uint8_t raw = keys.readInputs();  // active low
+  lastKeysRaw = raw;
   uint8_t b = 0;
   if (!(raw & (1 << KEY_UP_IO)))    b |= pt::BTN_UP;
   if (!(raw & (1 << KEY_CLICK_IO))) b |= pt::BTN_CLICK;
@@ -444,6 +468,7 @@ void setup() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ_HZ);
 
   keysOk = keys.begin(PCA9557_ADDR);
+  lastKeyProbeMs = millis();
   if (!keysOk) {
     Serial.println("WARN: PCA9557 key expander not responding");
   }
@@ -475,6 +500,7 @@ void setup() {
   applyBrightness();
   calibrateZero();
   lastMicros = micros();
+  nextFrameMicros = lastMicros + FRAME_PERIOD_US;
 }
 
 void loop() {
@@ -508,8 +534,9 @@ void loop() {
 
   pt::setAccel(accelX, accelY, accelZ);
   pt::setGravity(gravityX, gravityY);
+  uint8_t buttons = readButtons();
   uint32_t t0 = micros();
-  pt::engineTick(tiltX, tiltY, spinRate, readButtons(), dt);
+  pt::engineTick(tiltX, tiltY, spinRate, buttons, dt);
   tickUs += micros() - t0;
   applyBrightness();
   persistSave();
@@ -525,7 +552,7 @@ void loop() {
     lastBeat = millis();
     Serial.printf("[pixeltilt] up=%lus frames=%lu keys=%s raw=0x%02X imu=%s audio=%s tilt=%.2f,%.2f game=%d",
                   (unsigned long)(millis() / 1000), (unsigned long)frameCount,
-                  keysOk ? "ok" : "MISSING", keys.readInputs(),
+                  keysOk ? "ok" : "MISSING", lastKeysRaw,
                   imuOk ? "ok" : "absent", audioOk() ? "ok" : "off",
                   tiltX, tiltY, pt::currentGame());
 #if IMU_USE_UART_RVC
@@ -548,7 +575,20 @@ void loop() {
     Serial.println();
   }
 
-  // ~60 fps cap; engineTick+blit typically take well under a frame.
-  uint32_t elapsed = micros() - now;
-  if (elapsed < 16666) delayMicroseconds(16666 - elapsed);
+  // Absolute 60 Hz deadline: yield core 1 for the coarse part, then use at
+  // most 1 ms of busy-wait for a precise edge. Skip missed deadlines rather
+  // than running catch-up frames back-to-back after a hitch.
+  for (;;) {
+    int32_t remaining = (int32_t)(nextFrameMicros - micros());
+    if (remaining <= 0) break;
+    if (remaining > 1000) {
+      delay((uint32_t)(remaining - 1) / 1000);
+    } else {
+      delayMicroseconds((uint32_t)remaining);
+    }
+  }
+  uint32_t afterWait = micros();
+  do {
+    nextFrameMicros += FRAME_PERIOD_US;
+  } while ((int32_t)(afterWait - nextFrameMicros) >= 0);
 }

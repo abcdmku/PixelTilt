@@ -22,6 +22,90 @@ inline int fbIndex(int x, int y) {
   return (py * SCREEN_W + px) * 3;
 }
 
+// The public drawing primitives take logical (rotation-oblivious)
+// coordinates. Spans and solid rectangles are common enough that routing
+// every pixel through pixel() is needlessly expensive: it repeats clipping,
+// the rotation switch and the framebuffer-index calculation for every cell.
+// These helpers operate on already-clipped physical coordinates instead.
+inline void writePhysicalHSpan(int x0, int x1, int y, Color c) {
+  uint8_t* dst = framebuffer + (y * SCREEN_W + x0) * 3;
+  for (int n = x1 - x0; n > 0; n--) {
+    dst[0] = c.r;
+    dst[1] = c.g;
+    dst[2] = c.b;
+    dst += 3;
+  }
+}
+
+inline void writePhysicalVSpan(int x, int y0, int y1, Color c) {
+  int i = (y0 * SCREEN_W + x) * 3;
+  for (int n = y1 - y0; n > 0; n--) {
+    framebuffer[i + 0] = c.r;
+    framebuffer[i + 1] = c.g;
+    framebuffer[i + 2] = c.b;
+    i += SCREEN_W * 3;
+  }
+}
+
+inline void fillPhysicalRect(int x0, int y0, int x1, int y1, Color c) {
+  for (int y = y0; y < y1; y++) writePhysicalHSpan(x0, x1, y, c);
+}
+
+// Clip a logical horizontal span expressed with wide endpoints, then rotate
+// the whole span once. Wide endpoints also let circles and hostile callers
+// clip safely without overflowing int before the off-screen part is removed.
+inline void hspanClipped(int64_t x0, int64_t x1, int y, Color c) {
+  if ((unsigned)y >= (unsigned)SCREEN_H || x0 >= x1 ||
+      x1 <= 0 || x0 >= SCREEN_W) return;
+  int a = (int)(x0 < 0 ? 0 : x0);
+  int b = (int)(x1 > SCREEN_W ? SCREEN_W : x1);
+
+  switch (rot) {
+    default:
+      writePhysicalHSpan(a, b, y, c);
+      break;
+    case 1:
+      writePhysicalVSpan(SCREEN_W - 1 - y, a, b, c);
+      break;
+    case 2:
+      writePhysicalHSpan(SCREEN_W - b, SCREEN_W - a,
+                         SCREEN_H - 1 - y, c);
+      break;
+    case 3:
+      writePhysicalVSpan(y, SCREEN_H - b, SCREEN_H - a, c);
+      break;
+  }
+}
+
+// Exact integer square root, used only by the large-radius fillCircle path.
+// The common small-radius path below is an incremental O(r) scan conversion.
+uint64_t isqrt64(uint64_t n) {
+  uint64_t result = 0;
+  uint64_t bit = UINT64_C(1) << 62;  // greatest possible power of four
+  while (bit > n) bit >>= 2;
+  while (bit != 0) {
+    if (n >= result + bit) {
+      n -= result + bit;
+      result = (result >> 1) + bit;
+    } else {
+      result >>= 1;
+    }
+    bit >>= 2;
+  }
+  return result;
+}
+
+inline void fillPhysicalCircleRow(int64_t cx, int64_t y, int64_t extent,
+                                  Color c) {
+  if (y < 0 || y >= SCREEN_H) return;
+  int64_t x0 = cx - extent;
+  int64_t x1 = cx + extent + 1;
+  if (x0 >= x1 || x1 <= 0 || x0 >= SCREEN_W) return;
+  int a = (int)(x0 < 0 ? 0 : x0);
+  int b = (int)(x1 > SCREEN_W ? SCREEN_W : x1);
+  writePhysicalHSpan(a, b, (int)y, c);
+}
+
 }  // namespace
 
 void setRotation(int quarterTurns) { rot = quarterTurns & 3; }
@@ -68,11 +152,33 @@ Color getPixel(int x, int y) {
 }
 
 void hline(int x, int y, int w, Color c) {
-  for (int i = 0; i < w; i++) pixel(x + i, y, c);
+  if (w <= 0) return;
+  hspanClipped((int64_t)x, (int64_t)x + w, y, c);
 }
 
 void vline(int x, int y, int h, Color c) {
-  for (int i = 0; i < h; i++) pixel(x, y + i, c);
+  if (h <= 0 || (unsigned)x >= (unsigned)SCREEN_W) return;
+  int64_t lo = y;
+  int64_t hi = lo + h;
+  if (hi <= 0 || lo >= SCREEN_H) return;
+  int a = (int)(lo < 0 ? 0 : lo);
+  int b = (int)(hi > SCREEN_H ? SCREEN_H : hi);
+
+  switch (rot) {
+    default:
+      writePhysicalVSpan(x, a, b, c);
+      break;
+    case 1:
+      writePhysicalHSpan(SCREEN_W - b, SCREEN_W - a, x, c);
+      break;
+    case 2:
+      writePhysicalVSpan(SCREEN_W - 1 - x, SCREEN_H - b,
+                         SCREEN_H - a, c);
+      break;
+    case 3:
+      writePhysicalHSpan(a, b, SCREEN_H - 1 - x, c);
+      break;
+  }
 }
 
 void line(int x0, int y0, int x1, int y1, Color c) {
@@ -96,7 +202,34 @@ void rect(int x, int y, int w, int h, Color c) {
 }
 
 void fillRect(int x, int y, int w, int h, Color c) {
-  for (int j = 0; j < h; j++) hline(x, y + j, w, c);
+  if (w <= 0 || h <= 0) return;
+
+  int64_t lx0 = x, ly0 = y;
+  int64_t lx1 = lx0 + w, ly1 = ly0 + h;
+  if (lx1 <= 0 || ly1 <= 0 || lx0 >= SCREEN_W || ly0 >= SCREEN_H) return;
+  int x0 = (int)(lx0 < 0 ? 0 : lx0);
+  int y0 = (int)(ly0 < 0 ? 0 : ly0);
+  int x1 = (int)(lx1 > SCREEN_W ? SCREEN_W : lx1);
+  int y1 = (int)(ly1 > SCREEN_H ? SCREEN_H : ly1);
+
+  // A quarter-turn maps an axis-aligned logical rectangle to another
+  // axis-aligned rectangle. Transform the clipped bounds once, then stream
+  // contiguous physical rows for cache-friendly framebuffer writes.
+  switch (rot) {
+    default:
+      fillPhysicalRect(x0, y0, x1, y1, c);
+      break;
+    case 1:
+      fillPhysicalRect(SCREEN_W - y1, x0, SCREEN_W - y0, x1, c);
+      break;
+    case 2:
+      fillPhysicalRect(SCREEN_W - x1, SCREEN_H - y1,
+                       SCREEN_W - x0, SCREEN_H - y0, c);
+      break;
+    case 3:
+      fillPhysicalRect(y0, SCREEN_H - x1, y1, SCREEN_H - x0, c);
+      break;
+  }
 }
 
 void circle(int cx, int cy, int r, Color c) {
@@ -113,9 +246,47 @@ void circle(int cx, int cy, int r, Color c) {
 }
 
 void fillCircle(int cx, int cy, int r, Color c) {
-  for (int y = -r; y <= r; y++)
-    for (int x = -r; x <= r; x++)
-      if (x * x + y * y <= r * r) pixel(cx + x, cy + y, c);
+  if (r < 0) return;
+
+  // Rotate the center once. A circle's integer-pixel mask is invariant under
+  // quarter turns, so all emitted rows can then be contiguous physical spans.
+  int64_t pcx, pcy;
+  switch (rot) {
+    default: pcx = cx;                pcy = cy;                break;
+    case 1:  pcx = SCREEN_W - 1LL - cy; pcy = cx;              break;
+    case 2:  pcx = SCREEN_W - 1LL - cx; pcy = SCREEN_H - 1LL - cy; break;
+    case 3:  pcx = cy;                pcy = SCREEN_H - 1LL - cx; break;
+  }
+
+  int64_t rr = r;
+  if (pcx + rr < 0 || pcx - rr >= SCREEN_W ||
+      pcy + rr < 0 || pcy - rr >= SCREEN_H) return;
+  uint64_t r2 = (uint64_t)r * (uint64_t)r;
+
+  // Typical game circles are small. Their exact raster can be generated with
+  // one monotonically shrinking extent: O(r) rows and O(r) total adjustments,
+  // rather than testing every cell in the bounding square.
+  constexpr int SMALL_RADIUS = 128;
+  if (r <= SMALL_RADIUS) {
+    int64_t extent = r;
+    for (int64_t dy = 0; dy <= rr; dy++) {
+      while ((uint64_t)(extent * extent + dy * dy) > r2) extent--;
+      fillPhysicalCircleRow(pcx, pcy + dy, extent, c);
+      if (dy != 0) fillPhysicalCircleRow(pcx, pcy - dy, extent, c);
+    }
+    return;
+  }
+
+  // Keep pathological radii bounded: only the 64 visible rows are examined,
+  // with an exact integer square root so the old x*x+y*y<=r*r mask is kept.
+  for (int y = 0; y < SCREEN_H; y++) {
+    int64_t dy = (int64_t)y - pcy;
+    if (dy < -rr || dy > rr) continue;
+    uint64_t dy2 = (uint64_t)(dy < 0 ? -dy : dy);
+    dy2 *= dy2;
+    int64_t extent = (int64_t)isqrt64(r2 - dy2);
+    fillPhysicalCircleRow(pcx, y, extent, c);
+  }
 }
 
 // ---------------------------------------------------------------------------

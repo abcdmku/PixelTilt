@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 
 // The star of the show: a HUB75-style panel — one canvas of discrete LED dots
-// on a black mask, framed in a PCB-black bezel with silkscreen markings. No
-// bloom or halo: what you see is the emitters themselves, drawn at 10 device
-// pixels per LED so each dot gets a round edge instead of a square.
+// on a black mask, framed in a PCB-black bezel. No bloom or halo: what you see
+// is the emitters themselves, drawn at 10 device pixels per LED so each dot
+// gets a round edge instead of a square.
 export function MatrixDisplay(props: {
   registerCanvas(main: HTMLCanvasElement | null): void;
 }) {
@@ -23,11 +23,6 @@ export function MatrixDisplay(props: {
       <span className="bezel-hole br" />
       <div className="panel-face">
         <canvas ref={mainRef} className="matrix-main" width={640} height={640} />
-      </div>
-      <div className="bezel-label">
-        <span>P3-6464-HUB75E</span>
-        <span className="bezel-brand">PIXELTILT</span>
-        <span>1/32 SCAN</span>
       </div>
     </div>
   );

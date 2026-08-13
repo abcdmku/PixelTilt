@@ -12,6 +12,7 @@
     "gen": "node tools/gen-games.mjs",
     "new-game": "node tools/new-game.mjs",
     "wasm": "node tools/build-wasm.mjs",
+    "perf:test": "node tools/build-wasm.mjs && node tools/perf-test.mjs",
     "test": "node tools/build-wasm.mjs && node tools/smoke-test.mjs",
     "dev": "npm run wasm && npm --workspace frontend run dev",
     "build": "npm run wasm && npm --workspace frontend run build",
