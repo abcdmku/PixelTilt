@@ -1,4 +1,6 @@
-/* PixelTilt bench — dark hardware-lab console around a glowing HUB75 panel.
+/* PixelTilt bench — mobile-first. The whole emulator is one view that never
+   scrolls: the panel takes whatever height is left after the chrome, and the
+   tilt pad sits under it (portrait) or beside it (landscape / desktop).
    Fonts: Silkscreen (pixel display) + IBM Plex Mono (instrument body). */
 
 :root {
@@ -16,6 +18,15 @@
   --red: #f4514e;
   --font-pixel: "Silkscreen", monospace;
   --font-mono: "IBM Plex Mono", monospace;
+
+  /* Height of everything that is not the panel, in the portrait layout:
+     padding + header + toolbar + pad row + status + gaps. The panel is sized
+     from this so the page always fits one screen. */
+  --chrome: 325px;
+  /* 44px = the page's side padding plus the bezel around the LEDs. */
+  --panel: max(140px, min(calc(100vw - 44px), calc(100svh - var(--chrome))));
+  --pad-size: min(38vw, 150px);
+  --wheel-btn: 44px;
 }
 
 * {
@@ -24,12 +35,15 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   height: 100%;
 }
 
 body {
+  min-height: 100%;
+  /* `clip` (not `hidden`) — it stops sideways overflow without turning the
+     body into a scroll container, which would break the Audio Lab's scroll. */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-mono);
@@ -54,36 +68,49 @@ body::after {
 }
 
 #root {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
 }
 
 .bench {
-  flex: 1;
+  /* No `flex: 1` here — a flex-basis would override the explicit view height
+     below and the layout would collapse to its content height. */
   display: flex;
   flex-direction: column;
-  max-width: 1080px;
+  gap: 8px;
   width: 100%;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 16px 24px 24px;
-  gap: 16px;
+  padding: 8px 10px 10px;
+}
+
+/* The emulator is a fixed single view; the Audio Lab is a normal document. */
+.view-play {
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+}
+
+.view-lab {
+  min-height: 100vh;
+  min-height: 100svh;
 }
 
 /* ---------- header ---------- */
 
 .bench-header {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .bench-header h1 {
   font-family: var(--font-pixel);
-  font-size: 22px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   line-height: 1;
   text-shadow: 0 0 24px rgba(255, 176, 0, 0.25);
 }
@@ -94,19 +121,20 @@ body::after {
 
 .bench-nav {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .bench-nav a {
   font-family: var(--font-pixel);
-  font-size: 9px;
-  letter-spacing: 2px;
+  font-size: 8px;
+  letter-spacing: 1.5px;
   text-decoration: none;
+  white-space: nowrap;
   color: var(--ink-dim);
   background: var(--bg-raise);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 7px 12px 5px;
+  padding: 6px 9px 4px;
   transition: all 0.1s ease;
 }
 
@@ -121,49 +149,47 @@ body::after {
   background: rgba(255, 176, 0, 0.08);
 }
 
-/* ---------- bench layout ---------- */
+/* ---------- bench layout ----------
+   Portrait: toolbar / panel / pads / status stacked, panel takes the slack. */
 
 .bench-main {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  animation: rise 0.4s ease-out both;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-areas: "bar" "play" "pads" "status";
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  animation: rise 0.35s ease-out both;
 }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(8px); }
 }
 
-/* Panel + controls: pad beside the game on desktop, under it on mobile. */
-.play {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-}
+.toolbar { grid-area: bar; }
+.play { grid-area: play; }
+.pad-col { grid-area: pads; }
+.statusbar { grid-area: status; }
 
 /* ---------- toolbar ---------- */
 
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: var(--bg-raise);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .picker {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
   min-width: 0;
 }
 
 .picker-label {
+  display: none;
   font-family: var(--font-pixel);
   font-size: 9px;
   letter-spacing: 2px;
@@ -172,8 +198,10 @@ body::after {
 
 .picker-select {
   appearance: none;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 1px;
   color: var(--ink);
   background-color: var(--panel-pcb);
@@ -181,10 +209,8 @@ body::after {
   background-repeat: no-repeat;
   background-position: right 10px center;
   border: 1px solid var(--line-bright);
-  border-radius: 6px;
-  padding: 7px 30px 7px 12px;
-  min-width: 200px;
-  max-width: 100%;
+  border-radius: 8px;
+  padding: 10px 30px 10px 12px;
   cursor: pointer;
   transition: border-color 0.1s ease;
 }
@@ -195,23 +221,24 @@ body::after {
   outline: none;
 }
 
-.toolbar-actions {
+/* Toolbar buttons: glyph-only on phones, glyph + word from tablet up. */
+.tb {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.tb {
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  min-width: 44px;
+  height: 42px;
   font-family: var(--font-pixel);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1px;
   color: var(--ink);
   background: var(--panel-pcb);
   border: 1px solid var(--line-bright);
-  border-radius: 6px;
-  padding: 8px 12px 6px;
+  border-radius: 8px;
+  padding: 0 12px;
   cursor: pointer;
-  white-space: nowrap;
   transition: all 0.08s ease;
 }
 
@@ -224,112 +251,88 @@ body::after {
   transform: translateY(1px);
 }
 
-.tb.toggle {
-  color: var(--ink-dim);
-  border-color: var(--line);
+.tb-glyph {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
 }
 
-.tb.toggle.on {
-  color: var(--amber);
-  border-color: var(--amber-dim);
-  background: rgba(255, 176, 0, 0.1);
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--ink-dim);
-  padding-left: 2px;
-  min-width: 74px;
-}
-
-.led {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #333;
-  border: 1px solid #000;
-  flex: none;
-}
-
-.led.on {
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  animation: led-breathe 2.4s ease-in-out infinite;
-}
-
-@keyframes led-breathe {
-  50% { box-shadow: 0 0 3px var(--green); }
+.tb-text {
+  display: none;
 }
 
 /* ---------- panel ---------- */
+
+.play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
 
 .panel-bezel {
   position: relative;
   background: linear-gradient(160deg, #1b1e24, #101216 70%);
   border: 1px solid var(--line-bright);
   border-radius: 10px;
-  padding: 16px;
+  padding: 9px;
   box-shadow:
-    0 24px 60px -18px rgba(0, 0, 0, 0.9),
+    0 20px 50px -18px rgba(0, 0, 0, 0.9),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .bezel-hole {
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #3d4350, #0a0b0e 70%);
   border: 1px solid #000;
 }
 
-.bezel-hole.tl { top: 5px; left: 5px; }
-.bezel-hole.tr { top: 5px; right: 5px; }
-.bezel-hole.bl { bottom: 5px; left: 5px; }
-.bezel-hole.br { bottom: 5px; right: 5px; }
+.bezel-hole.tl { top: 4px; left: 4px; }
+.bezel-hole.tr { top: 4px; right: 4px; }
+.bezel-hole.bl { bottom: 4px; left: 4px; }
+.bezel-hole.br { bottom: 4px; right: 4px; }
 
 .panel-face {
   position: relative;
-  width: min(560px, 58vh, 60vw);
-  aspect-ratio: 1;
   /* Unlit panel: black mask with the LED dies faintly visible in it — the
-     same 64x64 grid the canvases draw on, so dark pixels read as an LED that
+     same 64x64 grid the canvas draws on, so dark pixels read as an LED that
      is off rather than as empty space. */
   background-color: #020304;
   background-image: radial-gradient(circle at center, #0d1014 0 22%, transparent 46%);
   background-size: 1.5625% 1.5625%;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px #000, inset 0 0 30px rgba(0, 0, 0, 0.9);
 }
 
-/* No bloom, no halo: the LEDs are drawn as emitters and the gaps stay black,
-   the way the panel actually looks. */
+/* One square, sized from the viewport so it can never overflow or push the
+   controls off-screen. No bloom, no halo: the LEDs are drawn as emitters and
+   the gaps stay black, the way the panel actually looks. */
 .matrix-main {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  display: block;
+  width: var(--panel);
+  height: var(--panel);
 }
 
 /* ---------- controls (tilt pad + wheel) ---------- */
 
 .pad-col {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+  min-width: 0;
 }
 
 .pad-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex: none;
 }
 
 .cap {
@@ -341,13 +344,13 @@ body::after {
 
 .tilt-pad {
   position: relative;
-  width: 180px;
-  aspect-ratio: 1;
+  width: var(--pad-size);
+  height: var(--pad-size);
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 176, 0, 0.06), transparent 65%),
+    radial-gradient(circle at 50% 50%, rgba(255, 176, 0, 0.07), transparent 65%),
     var(--panel-pcb);
   border: 1px solid var(--line-bright);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: crosshair;
   touch-action: none;
   overflow: hidden;
@@ -396,17 +399,17 @@ body::after {
   background: var(--panel-pcb);
   border: 1px solid var(--line-bright);
   border-radius: 26px;
-  padding: 6px;
+  padding: 5px;
 }
 
 .wheel-btn {
-  width: 46px;
-  height: 40px;
-  font-size: 13px;
+  width: calc(var(--wheel-btn) + 8px);
+  height: var(--wheel-btn);
+  font-size: 14px;
   color: var(--ink-dim);
   background: linear-gradient(180deg, #232833, #171b23);
   border: 1px solid var(--line-bright);
-  border-radius: 20px;
+  border-radius: 22px;
   cursor: pointer;
   user-select: none;
   touch-action: none;
@@ -424,13 +427,85 @@ body::after {
   box-shadow: 0 0 14px rgba(255, 176, 0, 0.35), inset 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
-/* ---------- key legend / nudges ---------- */
+/* ---------- status bar ---------- */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.chip {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 5px 10px 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.08s ease;
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--line-bright);
+}
+
+.chip.on {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #333;
+  border: 1px solid #000;
+  flex: none;
+}
+
+.led.on {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: led-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes led-breathe {
+  50% { box-shadow: 0 0 3px var(--green); }
+}
+
+.nudge {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--amber-dim);
+  white-space: nowrap;
+}
+
+/* ---------- key legend (pointer devices only) ---------- */
 
 .keys {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 18px;
+  align-items: center;
+  gap: 4px 16px;
   font-size: 10px;
   letter-spacing: 1.5px;
   color: var(--ink-faint);
@@ -453,26 +528,13 @@ kbd {
   padding: 1px 5px;
 }
 
-/* Touch devices drive the pad, not the keyboard — and on a narrow screen the
-   legend is just noise competing with the panel for height. */
-@media (pointer: coarse), (max-width: 640px) {
-  .keys { display: none; }
-}
-
-.audio-nudge {
-  text-align: center;
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--amber-dim);
-}
-
 /* ---------- fault ---------- */
 
 .fault {
   border: 1px solid var(--red);
   border-radius: 8px;
   background: rgba(244, 81, 78, 0.06);
-  padding: 28px;
+  padding: 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -484,12 +546,13 @@ kbd {
   font-family: var(--font-pixel);
   color: var(--red);
   letter-spacing: 3px;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .fault p {
   color: var(--ink-dim);
   max-width: 60ch;
+  font-size: 12px;
 }
 
 .fault code {
@@ -499,6 +562,137 @@ kbd {
   border: 1px solid var(--line-bright);
   border-radius: 4px;
   padding: 6px 14px;
+}
+
+/* ---------- landscape phones: pad moves beside the panel ---------- */
+
+@media (max-width: 900px) and (orientation: landscape) {
+  :root {
+    --panel: max(120px, min(56vw, calc(100svh - 148px)));
+    --pad-size: min(22vw, 116px);
+    --wheel-btn: 34px;
+  }
+
+  .bench-main {
+    grid-template-areas:
+      "bar  bar"
+      "play pads"
+      "status status";
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px 14px;
+  }
+
+  /* Wide but short: pad and wheel stay side by side so the row stays low. */
+  .pad-col {
+    align-self: center;
+    gap: 14px;
+  }
+}
+
+/* ---------- tablets and desktop ---------- */
+
+@media (min-width: 901px) {
+  :root {
+    --panel: max(220px, min(560px, 60vw, calc(100svh - 220px)));
+    --pad-size: min(170px, 24svh);
+    --wheel-btn: min(40px, 6svh);
+  }
+
+  .bench {
+    gap: 14px;
+    padding: 16px 24px 20px;
+  }
+
+  .bench-header h1 {
+    font-size: 22px;
+    letter-spacing: 2px;
+  }
+
+  .bench-nav a {
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 7px 12px 5px;
+  }
+
+  .bench-main {
+    grid-template-areas:
+      "bar  bar"
+      "play pads"
+      "status status";
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 14px 24px;
+  }
+
+  .toolbar {
+    gap: 8px;
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+
+  .picker {
+    flex: 0 1 auto;
+  }
+
+  .picker-label {
+    display: block;
+  }
+
+  .picker-select {
+    flex: 0 1 auto;
+    min-width: 220px;
+    font-size: 13px;
+    padding: 7px 30px 7px 12px;
+  }
+
+  .tb {
+    height: 36px;
+    font-size: 9px;
+  }
+
+  .tb-text {
+    display: inline;
+  }
+
+  .tb-glyph {
+    font-size: 12px;
+  }
+
+  .panel-bezel {
+    padding: 14px;
+  }
+
+  .bezel-hole {
+    width: 8px;
+    height: 8px;
+  }
+
+  .bezel-hole.tl { top: 5px; left: 5px; }
+  .bezel-hole.tr { top: 5px; right: 5px; }
+  .bezel-hole.bl { bottom: 5px; left: 5px; }
+  .bezel-hole.br { bottom: 5px; right: 5px; }
+
+  .pad-col {
+    flex-direction: column;
+    align-self: center;
+    gap: 16px;
+  }
+
+  .statusbar {
+    justify-content: space-between;
+  }
+
+  /* Keyboard users get the legend; touch users get the screen space. */
+  .keys {
+    display: flex;
+  }
+}
+
+@media (pointer: coarse) {
+  .keys { display: none; }
 }
 
 /* ---------- audio lab ---------- */
@@ -537,10 +731,17 @@ kbd {
 
 .lab-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 16px;
   align-items: start;
-  animation: rise 0.5s ease-out both;
+  animation: rise 0.4s ease-out both;
+}
+
+@media (min-width: 901px) {
+  .lab-main {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 22px;
+  }
 }
 
 .lab-blurb {
@@ -679,6 +880,7 @@ kbd {
 
 .lab-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
 }
@@ -812,59 +1014,4 @@ kbd {
   color: var(--red);
   border-color: var(--red);
   background: rgba(244, 81, 78, 0.08);
-}
-
-/* ---------- small screens: pad goes under the game ---------- */
-
-@media (max-width: 860px) {
-  .bench {
-    padding: 12px 14px 20px;
-    gap: 12px;
-  }
-
-  .play {
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  /* Leave room for the pad below: never let the panel eat the whole screen. */
-  .panel-face {
-    width: min(92vw, 460px, 52vh);
-  }
-
-  /* Pad on one side, wheel on the other — one thumb each. */
-  .pad-col {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 28px;
-    width: 100%;
-  }
-
-  .tilt-pad {
-    width: min(44vw, 200px);
-    flex: none;
-  }
-
-  .wheel-btn {
-    width: 54px;
-    height: 46px;
-  }
-
-  .toolbar {
-    justify-content: center;
-  }
-
-  .picker {
-    flex: 1;
-  }
-
-  .picker-select {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .lab-main {
-    grid-template-columns: 1fr;
-  }
 }

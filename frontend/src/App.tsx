@@ -16,15 +16,16 @@ function useRoute(): string {
 export default function App() {
   const lab = useRoute() === "#/audio";
 
+  // The emulator is a fixed single view; the lab scrolls like a document.
   return (
-    <div className="bench">
+    <div className={`bench ${lab ? "view-lab" : "view-play"}`}>
       <header className="bench-header">
         <h1>
           PIXEL<span className="accent">TILT</span>
         </h1>
         <nav className="bench-nav">
           <a href="#/" className={lab ? "" : "active"}>
-            EMULATOR
+            PLAY
           </a>
           <a href="#/audio" className={lab ? "active" : ""}>
             AUDIO LAB
