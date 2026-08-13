@@ -31,6 +31,22 @@
 // sequence — set this to 1 and reflash.
 #define PANEL_FM6126A 0
 
+// --- Panel refresh (scan) rate ---------------------------------------------
+// The HUB75 panel is re-scanned continuously by I2S DMA, independently of the
+// game frame rate. That scan rate sets flicker, brightness stability and how
+// the panel looks on camera. It is governed by:
+//   PANEL_I2S_HZ      pixel clock: 8000000, 16000000 or 20000000. Higher =
+//                     faster scan, but beyond what the panel/ribbon can take
+//                     it shows as ghosting or smeared columns.
+//   PANEL_COLOR_BITS  bits per colour channel (2..8). Refresh scales roughly
+//                     as 1/2^bits, so fewer bits buys a lot of refresh at the
+//                     cost of colour gradation.
+// The requested rate is a user setting (SETTINGS > REFRESH), not a
+// constant here — the library trades perceived colour depth until it meets it.
+// The achieved rate is printed at boot and in the heartbeat as "refresh=NNNHz".
+#define PANEL_I2S_HZ 8000000
+#define PANEL_COLOR_BITS 8
+
 // --- I2C bus (expansion header + onboard peripherals) ----------------------
 // The 4-pin 1mm I2C header is where the GY-BNO08x plugs in. The bus is shared
 // with the PCA9557 key expander (0x19), the PCF85063A RTC and the audio

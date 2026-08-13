@@ -24,7 +24,18 @@ struct Settings {
   uint8_t brightness;    // percent, 20..100 in steps of 20
   uint8_t sfxVolume;     // percent, 0..100 in steps of 20 (0 = mute)
   uint8_t musicVolume;   // percent, 0..100 in steps of 20 (0 = mute)
+  uint8_t panelRefresh;  // HUB75 scan-rate preset, index into PANEL_REFRESH_HZ.
+                         // Hardware-only (the browser has no panel); applied
+                         // by the firmware when it brings the panel up, so a
+                         // change takes effect on the next boot.
 };
+
+// Selectable panel refresh (scan) rates. Higher = less flicker; the ceiling
+// is panel-specific, so this is a user setting rather than a constant. The
+// firmware asks the HUB75 driver for at least this rate and reports what it
+// actually achieved.
+constexpr int PANEL_REFRESH_COUNT = 4;
+constexpr uint16_t PANEL_REFRESH_HZ[PANEL_REFRESH_COUNT] = {60, 150, 250, 450};
 
 // Reset everything to defaults (called from engineInit).
 void storageInit();

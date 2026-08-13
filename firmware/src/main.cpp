@@ -64,10 +64,24 @@ static void setupPanel() {
 #if PANEL_FM6126A
   cfg.driver = HUB75_I2S_CFG::FM6126A;
 #endif
+  // Panel scan (refresh) rate is set by the I2S pixel clock, the colour
+  // depth and the requested minimum — see PANEL_I2S_HZ / PANEL_COLOR_BITS /
+  // PANEL_MIN_REFRESH in board_config.h. Higher clock and fewer colour bits
+  // both raise the refresh rate (less flicker, better camera/persistence),
+  // at the cost of colour resolution and panel-timing margin.
+  cfg.i2sspeed = (HUB75_I2S_CFG::clk_speed)PANEL_I2S_HZ;
+  cfg.setPixelColorDepthBits(PANEL_COLOR_BITS);
+  // Requested scan rate comes from SETTINGS > REFRESH (persisted in NVS).
+  uint8_t idx = pt::settings().panelRefresh;
+  if (idx >= pt::PANEL_REFRESH_COUNT) idx = 0;
+  cfg.min_refresh_rate = pt::PANEL_REFRESH_HZ[idx];
   panel = new MatrixPanel_I2S_DMA(cfg);
   panel->begin();
   panel->setBrightness8(PANEL_BRIGHTNESS);
   panel->clearScreen();
+  Serial.printf("[pixeltilt] panel: i2s=%luHz depth=%dbit request=%dHz -> refresh=%dHz\n",
+                (unsigned long)PANEL_I2S_HZ, (int)PANEL_COLOR_BITS,
+                (int)pt::PANEL_REFRESH_HZ[idx], panel->calculated_refresh_rate);
 
   // Boot test pattern: a quick rainbow sweep proves panel wiring/power
   // before any game logic runs.
@@ -124,10 +138,11 @@ static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
   float ax = (int16_t)(p[7]  | (p[8]  << 8)) * MILLI_G;
   float ay = (int16_t)(p[9]  | (p[10] << 8)) * MILLI_G;
   float az = (int16_t)(p[11] | (p[12] << 8)) * MILLI_G;
-  // Yaw (0.01-degree units). The absolute heading drifts over minutes, so the
-  // games get the wrapped frame-to-frame delta as a rate instead.
-  int16_t yawRaw = (int16_t)(p[1] | (p[2] << 8));
-  static int16_t lastYawRaw = 0;
+  // Orientation, 0.01-degree units. Absolute heading drifts over minutes, so
+  // games get rates (frame-to-frame deltas) rather than angles.
+  int16_t yawRaw   = (int16_t)(p[1] | (p[2] << 8));
+  int16_t pitchRaw = (int16_t)(p[3] | (p[4] << 8));
+  int16_t rollRaw  = (int16_t)(p[5] | (p[6] << 8));
   // Sensor axes -> game axes for the documented mounting. A quarter-turn or
   // mirror off is fixable at runtime: Settings > TILT / FLIP. Light low-pass
   // keeps hand shake and motion spikes out of the games.
@@ -149,15 +164,42 @@ static bool rvcParse(const uint8_t* p) {  // p = the 17 bytes after 0xAA 0xAA
     linX += ((ay - gravX) - linX) * ks;
     linY += ((ax - gravY) - linY) * ks;
     linZ += ((az - gravZ) - linZ) * ks;
-    int32_t dYaw = yawRaw - lastYawRaw;                 // 0.01 deg per 10 ms
-    if (dYaw > 18000) dYaw -= 36000;                    // wrap at +-180 deg
-    if (dYaw < -18000) dYaw += 36000;
-    float rate = SPIN_SIGN * dYaw * (0.01f * 100.0f * pt::PI / 180.0f);  // rad/s
-    // A stream gap leaves lastYawRaw stale for one frame; clamp so that lone
-    // delta can't slam the filter.
-    spinRate += (pt::clampf(rate, -12.0f, 12.0f) - spinRate) * k;
+    // Rotation about the PANEL NORMAL, valid in EVERY orientation —
+    // including vertical. Two traps to avoid:
+    //   1. Yaw alone is rotation about the world vertical, which is the
+    //      panel normal only when the panel lies flat.
+    //   2. The Euler-rate formula (wz = -pitchRate*sin(roll) +
+    //      yawRate*cos(pitch)*cos(roll)) dies at pitch = +-90 degrees —
+    //      i.e. exactly when the panel is held UPRIGHT — because that is
+    //      gimbal lock: cos(pitch) -> 0 kills the yaw term and yaw/roll
+    //      individually become degenerate and jumpy.
+    // So instead: rebuild the body axes in world coords each frame and take
+    // the incremental rotation between consecutive frames. Near gimbal lock
+    // the wild yaw/roll jitter cancels between the two axes, leaving the
+    // true rotation — this is well-conditioned in every pose.
+    // Accurate libm trig here (the firmware is not freestanding): this
+    // differences two nearly-identical orientations, so the game core's
+    // fast ~1e-3 polynomial approximations would swamp the signal.
+    constexpr float TO_RAD = 0.01f * (float)M_PI / 180.0f;
+    float cy2 = cosf(yawRaw * TO_RAD), sy2 = sinf(yawRaw * TO_RAD);
+    float cp = cosf(pitchRaw * TO_RAD), sp = sinf(pitchRaw * TO_RAD);
+    float cr = cosf(rollRaw * TO_RAD), sr = sinf(rollRaw * TO_RAD);
+    // Columns 0 and 1 of R = Rz(yaw)Ry(pitch)Rx(roll): body X and Y in world.
+    float bx0 = cy2 * cp, bx1 = sy2 * cp, bx2 = -sp;
+    float by0 = cy2 * sp * sr - sy2 * cr;
+    float by1 = sy2 * sp * sr + cy2 * cr;
+    float by2 = cp * sr;
+    static float pbx0 = 0, pbx1 = 0, pbx2 = 0, pby0 = 0, pby1 = 0, pby2 = 0;
+    // dTheta_z = (Yprev . Xcur - Xprev . Ycur) / 2, at 100 Hz -> rad/s.
+    float dz = 0.5f * ((pby0 * bx0 + pby1 * bx1 + pby2 * bx2) -
+                       (pbx0 * by0 + pbx1 * by1 + pbx2 * by2));
+    float rate = SPIN_SIGN * dz * 100.0f;
+    pbx0 = bx0; pbx1 = bx1; pbx2 = bx2;
+    pby0 = by0; pby1 = by1; pby2 = by2;
+    // A stream gap leaves the previous sample stale for one frame; clamp so
+    // that lone delta can't slam the filter.
+    if (rvcFrames > 1) spinRate += (pt::clampf(rate, -12.0f, 12.0f) - spinRate) * k;
   }
-  lastYawRaw = yawRaw;
   rvcFrames++;
   rvcLastFrame = millis();
   return true;
@@ -352,12 +394,34 @@ static uint8_t readButtons() {
   return b;
 }
 
+// Dirty-pixel blit. drawPixelRGB888 is expensive — for EVERY pixel the
+// library loops over all 8 colour-depth planes doing a read-modify-write, so
+// repainting all 4096 pixels costs ~6.4 ms/frame (40% of a 60 fps budget) in
+// every game, whether or not anything changed. The DMA buffer persists, so
+// pixels that did not change need no work at all: keep a shadow copy and
+// push only the differences. A still screen costs almost nothing, and even
+// busy scenes touch a small fraction of the panel.
+static uint8_t shadowFb[PANEL_W * PANEL_H * 3];
+static bool shadowValid = false;
+
 static void blit() {
   const uint8_t* fb = pt::framebuffer;
+  if (!shadowValid) {   // first frame (or after a panel clear): paint it all
+    for (int y = 0; y < PANEL_H; y++)
+      for (int x = 0; x < PANEL_W; x++, fb += 3)
+        panel->drawPixelRGB888(x, y, fb[0], fb[1], fb[2]);
+    for (int i = 0; i < PANEL_W * PANEL_H * 3; i++) shadowFb[i] = pt::framebuffer[i];
+    shadowValid = true;
+    return;
+  }
+  uint8_t* sh = shadowFb;
   for (int y = 0; y < PANEL_H; y++) {
-    for (int x = 0; x < PANEL_W; x++) {
-      panel->drawPixelRGB888(x, y, fb[0], fb[1], fb[2]);
-      fb += 3;
+    for (int x = 0; x < PANEL_W; x++, fb += 3, sh += 3) {
+      if (fb[0] == sh[0] && fb[1] == sh[1] && fb[2] == sh[2]) continue;
+      sh[0] = fb[0];
+      sh[1] = fb[1];
+      sh[2] = fb[2];
+      panel->drawPixelRGB888(x, y, sh[0], sh[1], sh[2]);
     }
   }
 }
@@ -366,7 +430,14 @@ void setup() {
   Serial.begin(115200);
   Serial.println("[pixeltilt] boot");
 
-  // Panel first: even if every I2C peripheral is missing, the display comes
+  // Settings first, because the panel's scan rate is chosen when the DMA
+  // starts and cannot change afterwards — that is why SETTINGS > REFRESH
+  // says "ON REBOOT". engineInit() seeds defaults; loadSave() then applies
+  // whatever is stored in NVS.
+  pt::engineInit();
+  loadSave();
+
+  // Panel next: even if every I2C peripheral is missing, the display comes
   // up and shows the boot sweep + menu.
   setupPanel();
 
@@ -401,8 +472,6 @@ void setup() {
 #endif
 
   pt::srand_(esp_random());
-  pt::engineInit();
-  loadSave();
   applyBrightness();
   calibrateZero();
   lastMicros = micros();
@@ -421,12 +490,32 @@ void loop() {
   float gravityX = 0, gravityY = 0;
   readGravity(gravityX, gravityY);
 
+  // TEMP DIAGNOSTIC: how noisy is the signal the physics actually sees?
+  // Accumulates per-heartbeat statistics of the field and the shake
+  // residual so a genuinely-still board can be told apart from a jittering
+  // sensor. (Also times engineTick vs blit to locate any frame-rate cost.)
+  static float dgSum = 0, dgMax = 0, amSum = 0, amMax = 0, spinMax = 0;
+  static uint32_t diagN = 0, tickUs = 0, blitUs = 0;
+  static float pgx = 0, pgy = 0;
+  float ddx = gravityX - pgx, ddy = gravityY - pgy;
+  pgx = gravityX; pgy = gravityY;
+  float dgm = sqrtf(ddx * ddx + ddy * ddy);          // per-frame field jitter, g
+  float amm = sqrtf(accelX * accelX + accelY * accelY);  // shake residual, g
+  dgSum += dgm; if (dgm > dgMax) dgMax = dgm;
+  amSum += amm; if (amm > amMax) amMax = amm;
+  if (fabsf(spinRate) > spinMax) spinMax = fabsf(spinRate);
+  diagN++;
+
   pt::setAccel(accelX, accelY, accelZ);
   pt::setGravity(gravityX, gravityY);
+  uint32_t t0 = micros();
   pt::engineTick(tiltX, tiltY, spinRate, readButtons(), dt);
+  tickUs += micros() - t0;
   applyBrightness();
   persistSave();
+  t0 = micros();
   blit();
+  blitUs += micros() - t0;
   frameCount++;
 
   // Status heartbeat: lets `npm run monitor` (or any late-attached terminal)
@@ -447,6 +536,15 @@ void loop() {
                   (unsigned long)(millis() - rvcLastFrame), (unsigned long)rvcRestarts,
                   rvcIdlePct);
 #endif
+    if (diagN) {
+        Serial.printf(" refresh=%dHz", panel->calculated_refresh_rate);
+      Serial.printf(" | NOISE dField avg=%.4f max=%.4f g | accel avg=%.4f max=%.4f g | spinMax=%.2f rad/s | tick=%luus blit=%luus fps=%lu",
+                    dgSum / diagN, dgMax, amSum / diagN, amMax, spinMax,
+                    (unsigned long)(tickUs / diagN), (unsigned long)(blitUs / diagN),
+                    (unsigned long)(diagN / 2));
+      dgSum = dgMax = amSum = amMax = spinMax = 0;
+      tickUs = blitUs = diagN = 0;
+    }
     Serial.println();
   }
 

@@ -185,23 +185,24 @@ body::after {
   position: relative;
   width: min(512px, 62vw);
   aspect-ratio: 1;
-  background: #030405;
+  /* Unlit panel: black mask with the LED dies faintly visible in it — the
+     same 64x64 grid the canvases draw on, so dark pixels read as an LED that
+     is off rather than as empty space. */
+  background-color: #020304;
+  background-image: radial-gradient(circle at center, #0d1014 0 22%, transparent 46%);
+  background-size: 1.5625% 1.5625%;
   border-radius: 4px;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px #000, inset 0 0 30px rgba(0, 0, 0, 0.9);
 }
 
-.matrix-glow,
+/* No bloom, no halo: the LEDs are drawn as emitters and the gaps stay black,
+   the way the panel actually looks. */
 .matrix-main {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-}
-
-.matrix-glow {
-  filter: blur(14px) saturate(1.7) brightness(1.15);
-  opacity: 0.55;
 }
 
 .bezel-label {

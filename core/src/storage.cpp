@@ -11,7 +11,7 @@ namespace {
 // games being added, removed or reordered in the menu.
 constexpr int MAX_SAVE_GAMES = 16;
 constexpr uint32_t SAVE_MAGIC = 0x50545356u;  // "PTSV"
-constexpr uint16_t SAVE_VERSION = 4;  // v4: Settings grew sfxVolume/musicVolume
+constexpr uint16_t SAVE_VERSION = 5;  // v5: Settings grew panelRefresh
 
 struct GameSlot {
   uint32_t idHash;
@@ -72,6 +72,9 @@ void storageInit() {
   save.cfg.brightness = 100;
   save.cfg.sfxVolume = 80;
   save.cfg.musicVolume = 60;
+  save.cfg.panelRefresh = 2;  // 250 Hz: the fastest clean rate measured on the
+                              // Seengreat panel (higher needs a faster pixel
+                              // clock, which ghosts on this hardware).
   for (int i = 0; i < MAX_SAVE_GAMES; i++) clearSlot(save.games[i]);
   dirty = false;
   applySettings();

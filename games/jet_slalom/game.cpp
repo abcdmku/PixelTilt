@@ -27,7 +27,21 @@ constexpr int CLEAR_SCORE[10] = {8000, 8200, 8400, 12000, 12200,
                                  25000, 25200, 25400, 40000, 99999};
 constexpr int MAX_COUNTS[10] = {4, 4, 4, 3, 3, 2, 2, 2, 1, 1};
 
-constexpr Color OB_COLORS[4] = {{255, 255, 0}, {0, 0, 255}, {255, 0, 0}, {255, 0, 255}};
+// Pylons keep the applet's four colors, except its pure blue: with the
+// backgrounds dimmed below, a (0,0,255) pylon is perceptually darker than
+// the sky it stands against and disappears on the night rounds, so it is
+// lifted to a sky blue that still reads as the same pylon.
+constexpr Color OB_COLORS[4] = {{255, 255, 0}, {100, 150, 255}, {255, 0, 0}, {255, 0, 255}};
+// The applet's palette was authored for a small CRT window, where a bright
+// sky and grass still left the pylons readable. On a 64x64 LED panel those
+// full-intensity backgrounds swamp the pylons, so the sky/ground pairs are
+// dimmed to this fraction at draw time while the pylons stay full-intensity.
+constexpr float BG_DIM = 0.38f;
+
+constexpr Color dimmed(Color c) {
+  return {(uint8_t)(c.r * BG_DIM), (uint8_t)(c.g * BG_DIM), (uint8_t)(c.b * BG_DIM)};
+}
+
 // Sky/ground pairs per round, straight from the applet.
 constexpr Color BK_COLORS[20] = {
     {0, 160, 255},   {0, 200, 64},  {64, 160, 200}, {0, 180, 64},
@@ -230,7 +244,7 @@ void fillTri(int x0, int y0, int x1, int y1, int x2, int y2, Color c) {
 }
 
 void drawWorld() {
-  clear(BK_COLORS[round_ * 2]);
+  clear(dimmed(BK_COLORS[round_ * 2]));
 
   float si, co;
   tiltSinCos(si, co);
@@ -242,7 +256,7 @@ void drawWorld() {
   float ly = CY + (-si * -26.0f + 2.0f) * farScale;
   float rx = CX + co * 26.0f * farScale;
   float ry = CY + (-si * 26.0f + 2.0f) * farScale;
-  Color ground = BK_COLORS[round_ * 2 + 1];
+  Color ground = dimmed(BK_COLORS[round_ * 2 + 1]);
   for (int x = 0; x < SCREEN_W; x++) {
     int top = (int)(ly + (ry - ly) * (x - lx) / (rx - lx));
     if (top < 0) top = 0;

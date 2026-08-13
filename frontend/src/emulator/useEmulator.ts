@@ -8,6 +8,7 @@ import {
   SCREEN_H,
   SCREEN_W,
 } from "./wasm";
+import { LED_CHROMA, LED_CORE_WHITE, makeLedMask, panelTables } from "./panel";
 import {
   audioUnlocked,
   installAudioUnlock,
@@ -83,7 +84,7 @@ export interface EmulatorState {
 }
 
 export interface EmulatorControls {
-  registerCanvases(main: HTMLCanvasElement | null, glow: HTMLCanvasElement | null): void;
+  registerCanvas(main: HTMLCanvasElement | null): void;
   launch(i: number): void;
   exitToMenu(): void;
   reset(): void;
@@ -127,37 +128,30 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const pausedRef = useRef(false);
   const sfxSerial = useRef(0);
   const musicSerial = useRef(0);
-  const canvases = useRef<{ main: HTMLCanvasElement | null; glow: HTMLCanvasElement | null }>({
-    main: null,
-    glow: null,
-  });
+  const canvas = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let raf = 0;
 
-    const offscreen = document.createElement("canvas");
-    offscreen.width = SCREEN_W;
-    offscreen.height = SCREEN_H;
-    const offCtx = offscreen.getContext("2d")!;
-    const image = offCtx.createImageData(SCREEN_W, SCREEN_H);
-    let dotMask: HTMLCanvasElement | null = null;
-
-    const makeDotMask = (size: number) => {
-      const mask = document.createElement("canvas");
-      mask.width = mask.height = size;
-      const ctx = mask.getContext("2d")!;
-      const cell = size / SCREEN_W;
-      ctx.fillStyle = "#fff";
-      for (let y = 0; y < SCREEN_H; y++) {
-        for (let x = 0; x < SCREEN_W; x++) {
-          ctx.beginPath();
-          ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.42, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      return mask;
+    // Two 64x64 staging buffers: the LED body (its color at the light level
+    // the panel really emits) and the brighter die at the centre of a hard-
+    // driven LED.
+    const makeBuffer = () => {
+      const c = document.createElement("canvas");
+      c.width = SCREEN_W;
+      c.height = SCREEN_H;
+      return { canvas: c, ctx: c.getContext("2d")! };
     };
+    const body = makeBuffer();
+    const core = makeBuffer();
+    const bodyImage = body.ctx.createImageData(SCREEN_W, SCREEN_H);
+    const coreImage = core.ctx.createImageData(SCREEN_W, SCREEN_H);
+    // Scratch at panel resolution: the core layer needs its own masking pass
+    // before it can be added on top of the body layer.
+    const scratch = document.createElement("canvas");
+    let bodyMask: HTMLCanvasElement | null = null;
+    let coreMask: HTMLCanvasElement | null = null;
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
       if (ev.repeat) return;
@@ -276,37 +270,74 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         setMusicTrack(m.musicTrack());
       }
 
-      // Blit framebuffer -> offscreen 64x64 -> scaled canvases. Brightness is
-      // applied here, like the panel PWM on the device.
+      // Blit framebuffer -> 64x64 staging -> the LED grid, through the
+      // panel's real color pipeline: CIE 1931 curve, 8-bit BCM duty, then the
+      // brightness setting as an OE dim (see emulator/panel.ts). Dark codes
+      // crush to black here exactly like they do on the hardware.
       const fb = m.framebuffer();
-      const px = image.data;
-      const br = m.brightness() / 100;
+      const { emit, hot } = panelTables(m.brightness());
+      const bp = bodyImage.data;
+      const cp = coreImage.data;
       for (let i = 0, j = 0; i < fb.length; i += 3, j += 4) {
-        px[j] = fb[i] * br;
-        px[j + 1] = fb[i + 1] * br;
-        px[j + 2] = fb[i + 2] * br;
-        px[j + 3] = 255;
+        let r = emit[fb[i]];
+        let g = emit[fb[i + 1]];
+        let b = emit[fb[i + 2]];
+        // Narrow-band primaries: pull the smallest channel down and rescale
+        // so the brightest is unchanged — the panel's colors are purer than
+        // sRGB can express, and washed-out mixes are the tell.
+        const lo = r < g ? (r < b ? r : b) : g < b ? g : b;
+        if (lo > 0) {
+          const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
+          const sub = lo * LED_CHROMA;
+          const k = hi / (hi - sub);
+          r = (r - sub) * k;
+          g = (g - sub) * k;
+          b = (b - sub) * k;
+        }
+        bp[j] = r;
+        bp[j + 1] = g;
+        bp[j + 2] = b;
+        bp[j + 3] = 255;
+        // A hard-driven LED's die reads brighter and less saturated than its
+        // rim; keyed off the brightest channel so the hue survives.
+        const peak = fb[i] > fb[i + 1] ? fb[i] : fb[i + 1];
+        const h = hot[fb[i + 2] > peak ? fb[i + 2] : peak];
+        const w = (h / 255) * LED_CORE_WHITE;
+        cp[j] = r + (255 - r) * w;
+        cp[j + 1] = g + (255 - g) * w;
+        cp[j + 2] = b + (255 - b) * w;
+        cp[j + 3] = h;
       }
-      offCtx.putImageData(image, 0, 0);
+      body.ctx.putImageData(bodyImage, 0, 0);
+      core.ctx.putImageData(coreImage, 0, 0);
 
-      const { main, glow } = canvases.current;
+      const main = canvas.current;
       if (main) {
+        const size = main.width;
         const ctx = main.getContext("2d")!;
-        if (!dotMask || dotMask.width !== main.width) dotMask = makeDotMask(main.width);
-        ctx.clearRect(0, 0, main.width, main.height);
+        if (!bodyMask || bodyMask.width !== size) {
+          bodyMask = makeLedMask(size, SCREEN_W, 0.22, 0.44);
+          coreMask = makeLedMask(size, SCREEN_W, 0.06, 0.26);
+          scratch.width = scratch.height = size;
+        }
+        const sctx = scratch.getContext("2d")!;
+        ctx.clearRect(0, 0, size, size);
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(offscreen, 0, 0, main.width, main.height);
+        ctx.drawImage(body.canvas, 0, 0, size, size);
         ctx.globalCompositeOperation = "destination-in";
-        ctx.drawImage(dotMask, 0, 0);
+        ctx.drawImage(bodyMask, 0, 0);
+        ctx.globalCompositeOperation = "source-over";
+        // Die on top, added rather than painted so it reads as light.
+        sctx.globalCompositeOperation = "source-over";
+        sctx.clearRect(0, 0, size, size);
+        sctx.imageSmoothingEnabled = false;
+        sctx.drawImage(core.canvas, 0, 0, size, size);
+        sctx.globalCompositeOperation = "destination-in";
+        sctx.drawImage(coreMask!, 0, 0);
+        ctx.globalCompositeOperation = "lighter";
+        ctx.drawImage(scratch, 0, 0);
         ctx.globalCompositeOperation = "source-over";
       }
-      if (glow) {
-        const gtx = glow.getContext("2d")!;
-        gtx.imageSmoothingEnabled = true;
-        gtx.clearRect(0, 0, glow.width, glow.height);
-        gtx.drawImage(offscreen, 0, 0, glow.width, glow.height);
-      }
-
       // Cheap UI sync ~10 Hz so React isn't re-rendering at 60 fps.
       fpsAccum += dt;
       fpsFrames++;
@@ -370,8 +401,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     musicVolume: volumesUi.music,
     esp32Perf,
     esp32Fps,
-    registerCanvases: (main, glow) => {
-      canvases.current = { main, glow };
+    registerCanvas: (main) => {
+      canvas.current = main;
     },
     launch: (i) => emu.current?.launch(i),
     exitToMenu: () => emu.current?.exitToMenu(),

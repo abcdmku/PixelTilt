@@ -223,7 +223,7 @@ uint8_t cycleVolume(uint8_t v) {
 
 void tickSettings(float dt) {
   // SCREEN, TILT, FLIP, BRIGHT, SFX, MUSIC, RESET SCORES, BACK
-  constexpr int ITEMS = 8;
+  constexpr int ITEMS = 9;
   constexpr int VISIBLE = 6;  // rows that fit between the title and footer
   if (resetFlash > 0) resetFlash -= dt;
 
@@ -258,15 +258,23 @@ void tickSettings(float dt) {
         sfx(STYLE_CHIP, SFX_SELECT);
         break;
       case 4:
+        // Panel scan rate. The HUB75 driver fixes this when it starts the
+        // DMA, so the new rate applies at the next boot (the row says so).
+        settings().panelRefresh =
+            (uint8_t)((settings().panelRefresh + 1) % PANEL_REFRESH_COUNT);
+        settingsChanged();
+        sfx(STYLE_CHIP, SFX_SELECT);
+        break;
+      case 5:
         settings().sfxVolume = cycleVolume(settings().sfxVolume);
         settingsChanged();
         sfx(STYLE_CHIP, SFX_COIN);  // audition the new level right away
         break;
-      case 5:
+      case 6:
         settings().musicVolume = cycleVolume(settings().musicVolume);
         settingsChanged();  // host adjusts the music bus live
         break;
-      case 6:
+      case 7:
         if (!confirmReset) {
           confirmReset = true;
           sfx(STYLE_CHIP, SFX_ALARM);
@@ -277,7 +285,7 @@ void tickSettings(float dt) {
           sfx(STYLE_CHIP, SFX_POWERUP);
         }
         break;
-      case 7:
+      case 8:
         sfx(STYLE_CHIP, SFX_SELECT);
         if (settingsFrom == ST_PAUSE) {
           state = ST_PAUSE;
@@ -330,27 +338,35 @@ void tickSettings(float dt) {
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
       case 4:
+        text(8, y, "REFRESH", c);
+        intToStr(PANEL_REFRESH_HZ[settings().panelRefresh % PANEL_REFRESH_COUNT],
+                 buf);
+        text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
+        break;
+      case 5:
         text(8, y, "SFX", c);
         intToStr(settings().sfxVolume, buf);
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
-      case 5:
+      case 6:
         text(8, y, "MUSIC", c);
         intToStr(settings().musicVolume, buf);
         text(SCREEN_W - textWidth(buf) - 3, y, buf, sel ? CYAN : GRAY);
         break;
-      case 6:
+      case 7:
         if (resetFlash > 0)       text(8, y, "CLEARED!", GREEN);
         else if (confirmReset)    text(8, y, "SURE?", RED);
         else                      text(8, y, "RESET SCORES", c);
         break;
-      case 7:
+      case 8:
         text(8, y, "BACK", c);
         break;
     }
   }
 
-  textCentered(SCREEN_H - 8, "CLICK-CHANGE", DARKGRAY);
+  // REFRESH only takes effect when the panel driver next starts up.
+  textCentered(SCREEN_H - 8,
+               settingsCursor == 4 ? "ON REBOOT" : "CLICK-CHANGE", DARKGRAY);
 }
 
 // --- scores -----------------------------------------------------------------

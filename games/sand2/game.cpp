@@ -72,25 +72,11 @@ float fdirX, fdirY;
 // Upright, derived from how fast the gravity vector sweeps in screen coords
 // (the panel rotating CW makes the field appear to rotate CCW); flat, the
 // IMU's yaw rate IS the normal-axis rate. rotAlpha is spin-up/down.
-float prevFieldAng;
-bool  prevAngValid;
-float prevMag;
 float rotOmega, prevOmega, rotAlpha;
 
-// Sleep: a settled pile costs nothing. The sim runs only while "activity"
-// is hot — any field change, jolt, spin, or particle still moving rearms
-// it; a quiet settled bed skips the whole solver (and cannot drift).
-float activity;
-float prevFgx, prevFgy;
-float medFx, medFy;         // ~66 ms filter: fast enough to see a flick, slow
-                            // enough that per-frame sensor noise averages out
-float smoothFx, smoothFy;   // low-passed field: zero-mean sensor noise averages
-float anchorFx, anchorFy;   // out of it, so only a REAL lean drifts the anchor
-bool  anchored;             // set when the bed sleeps; drift from it wakes
-float maxSp;
-int   movingCount;          // grains still in motion (sleep test)
-float quietT;               // seconds since the last decisive input event
-int   deepOv;   // deep overlaps seen last simulated frame — must not sleep on them
+// Solver effort inputs only — there is no sleep or settle state.
+float maxSp;    // fastest grain last frame (picks the substep count)
+int   deepOv;   // deep overlaps last frame (backs off sweeps during a crush)
 
 // Zero-compression bookkeeping (see decompress()).
 uint16_t occGen[W * H];    // generation-stamped occupancy (no per-frame clear)
@@ -101,6 +87,7 @@ uint16_t bfsGen[W * H];
 uint16_t bfsStamp;
 int8_t   ringX[168], ringY[168];  // offsets |dx|,|dy| <= 6, sorted by distance
 int      ringN;
+int16_t  lastReloc[NP];   // where each grain was relocated to last frame
 
 void resetField() {
   int i = 0;
@@ -133,29 +120,15 @@ void init() {
       ringY[k] = (int8_t)dy;
     }
   resetField();
-  prevFieldAng = 0;
-  prevAngValid = false;
-  prevMag = 0;
   rotOmega = 0;
   prevOmega = 0;
   rotAlpha = 0;
-  activity = 0.5f;
-  prevFgx = 0;
-  prevFgy = 0;
-  medFx = 0;
-  medFy = 0;
-  smoothFx = 0;
-  smoothFy = 0;
-  anchorFx = 0;
-  anchorFy = 0;
-  anchored = false;
   maxSp = 0;
-  movingCount = 0;
-  quietT = 0;
   deepOv = 0;
   occStamp = 0;
   bfsStamp = 0;
   for (int c = 0; c < W * H; c++) { occGen[c] = 0; bfsGen[c] = 0; }
+  for (int i = 0; i < NP; i++) lastReloc[i] = -1;
 }
 
 // Fast inverse square root (one Newton step, ~0.2% error — plenty for
@@ -226,12 +199,18 @@ inline void solvePair(int i, int j) {
     float mdy = (pys[i] - oys[i]) - (pys[j] - oys[j]);
     float mn = mdx * nx + mdy * ny;
     float tx = mdx - mn * nx, ty = mdy - mn * ny;
-    // Shear-rate-dependent friction: creeping contacts feel the base MU
-    // (sets the repose angle), fast-slipping ones dissipate harder — that is
-    // what stops avalanche sheets ricocheting off the bed as a dust spray.
-    // Kept moderate so flows roll out instead of stopping dead.
     float slip2 = tx * tx + ty * ty;
-    float k = 0.5f * (MU + fminf_(0.25f, 3.0f * slip2));
+    // Coulomb friction with a real STATIC regime. Below a tiny slip the
+    // contact STICKS: the pair's relative tangential motion is cancelled
+    // outright (k = 0.5 shares the correction equally), so a resting pile
+    // locks up and genuinely stops — no timers, no global damping, nothing
+    // that could also stifle a real flow. Above that threshold the contact
+    // slips with kinetic friction, rising with shear rate so avalanche
+    // sheets dissipate instead of ricocheting off the bed.
+    constexpr float STICK = 0.004f;   // px of slip per substep
+    float k = slip2 < STICK * STICK
+                  ? 0.5f
+                  : 0.5f * (MU + fminf_(0.25f, 3.0f * slip2));
     pxs[i] -= tx * k;
     pys[i] -= ty * k;
     pxs[j] += tx * k;
@@ -256,8 +235,12 @@ void decompress() {
     int cx = clampi(floori(pxs[i]), 0, W - 1);
     int cy = clampi(floori(pys[i]), 0, H - 1);
     int c = cy * W + cx;
-    if (occGen[c] != occStamp) occGen[c] = occStamp;
-    else clumped[nclump++] = (int16_t)i;
+    if (occGen[c] != occStamp) {
+      occGen[c] = occStamp;
+      lastReloc[i] = -1;   // sitting in its own cell: forget any old spot
+    } else {
+      clumped[nclump++] = (int16_t)i;
+    }
   }
   // Nearest free cell: a cheap distance-sorted ring scan resolves virtually
   // every clump; BFS is the exhaustive fallback for grains buried deep in a
@@ -268,6 +251,20 @@ void decompress() {
     int scx = clampi(floori(pxs[i]), 0, W - 1);
     int scy = clampi(floori(pys[i]), 0, H - 1);
     bool placed = false;
+    // Hysteresis: a grain that had to be relocated last frame reclaims the
+    // SAME cell if it is still free and still adjacent. Without this the
+    // search picks a different neighbour as the pile shifts, and grains
+    // visibly trade places every frame in any banked pile.
+    int prev = lastReloc[i];
+    if (prev >= 0 && occGen[prev] != occStamp) {
+      int dx = (prev % W) - scx, dy = (prev / W) - scy;
+      if (dx * dx + dy * dy <= 8) {
+        occGen[prev] = occStamp;
+        pxs[i] = (prev % W) + 0.5f;
+        pys[i] = (prev / W) + 0.5f;
+        continue;
+      }
+    }
     for (int k = 0; k < ringN; k++) {
       int nx = scx + ringX[k], ny = scy + ringY[k];
       if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
@@ -276,6 +273,7 @@ void decompress() {
       occGen[c] = occStamp;
       pxs[i] = nx + 0.5f;
       pys[i] = ny + 0.5f;
+      lastReloc[i] = (int16_t)c;
       placed = true;
       break;
     }
@@ -294,6 +292,7 @@ void decompress() {
         occGen[c] = occStamp;
         pxs[i] = (c % W) + 0.5f;
         pys[i] = (c / W) + 0.5f;
+        lastReloc[i] = (int16_t)c;
         break;
       }
       int cx = c % W, cy = c / W;
@@ -331,33 +330,37 @@ void update(float dt) {
   if (mag > 0.05f) { fdirX = gvx / mag; fdirY = gvy / mag; }
   else             { fdirX = 0; fdirY = 0; }
 
-  // Rotation about the panel normal. The field's sweep rate only equals it
-  // when gravity is strongly in-plane AND its magnitude is steady (a true
-  // upright turn); while TILTING, the in-plane direction sweeps without any
-  // normal-axis rotation, so that zone must contribute nothing — otherwise
-  // a brisk tilt reads as a violent spin. Near flat, the IMU yaw rate is
-  // the normal-axis rate, but it is noisy, hence the deadzone (which also
-  // lets the solver sleep on a flat table).
-  float dmagRate = dt > 0.0001f ? (mag - prevMag) / dt : 0;
-  prevMag = mag;
-  float w = 0;
-  if (mag > 0.7f && fabsf_(dmagRate) < 0.8f) {
-    float ang = atan2f_(gvy, gvx);
-    if (prevAngValid && dt > 0.0001f) {
-      float dAng = ang - prevFieldAng;
-      if (dAng > PI) dAng -= TWO_PI;
-      if (dAng < -PI) dAng += TWO_PI;
-      w = -dAng / dt;
-    }
-    prevFieldAng = ang;
-    prevAngValid = true;
-  } else {
-    prevAngValid = false;
-    if (mag < 0.25f && fabsf_(input.spin) > 0.5f) w = input.spin;
-  }
-  rotOmega += (clampf(w, -15.0f, 15.0f) - rotOmega) * fminf_(1.0f, 12.0f * dt);
+  // Rotation about the panel normal, straight from the IMU (input.spin is
+  // the true normal-axis angular velocity in every orientation — see the
+  // firmware's body-rate derivation). No inference from how the field
+  // sweeps: that could not tell a spin from an ordinary tilt, which is why
+  // tilting used to fling sand and spinning did nothing in most poses.
+  // A small deadzone keeps gyro noise from creeping a resting bed.
+  float w = fabsf_(input.spin) > 0.15f ? input.spin : 0.0f;
+  rotOmega += (clampf(w, -15.0f, 15.0f) - rotOmega) * fminf_(1.0f, 20.0f * dt);
+  if (fabsf_(rotOmega) < 0.05f) rotOmega = 0.0f;
   rotAlpha = dt > 0.0001f ? clampf((rotOmega - prevOmega) / dt, -20.0f, 20.0f) : 0;
   prevOmega = rotOmega;
+
+  // Flick impulse. The field alone cannot sell a flick when the panel is
+  // upright: there, a full 1 g of gravity pins the bed down and the pile's
+  // own repose angle must be exceeded before anything moves, so a flick
+  // that visibly sloshes a flat panel does almost nothing vertically. Real
+  // sand in an upright frame does slosh, so the in-plane linear
+  // acceleration is ALSO applied directly as a velocity impulse — that is
+  // orientation-independent, so a flick feels the same in every pose. The
+  // per-grain variation is what shears the bed loose instead of sliding it
+  // rigidly, and it decays through the normal contact damping.
+  float am = sqrtf_(input.accelX * input.accelX + input.accelY * input.accelY);
+  if (am > 0.12f) {
+    float ik = 1500.0f * (am - 0.12f) / am * dt;
+    float ix = input.accelX * ik, iy = input.accelY * ik;
+    for (int i = 0; i < NP; i++) {
+      float j = 0.7f + 0.6f * randf();
+      vxs[i] += ix * j;
+      vys[i] += iy * j;
+    }
+  }
 
   // Out-of-plane jolt: a push-pull along the panel normal can't show up in
   // the in-plane field, so it becomes a small agitation kick, biased
@@ -374,47 +377,11 @@ void update(float dt) {
     }
   }
 
-  // Wake on any stimulus; sleep a settled bed entirely (zero solver cost,
-  // zero idle drift). Moving particles keep it awake via maxSp.
-  float pmx = medFx, pmy = medFy;
-  medFx += (fgx - medFx) * fminf_(1.0f, 15.0f * dt);
-  medFy += (fgy - medFy) * fminf_(1.0f, 15.0f * dt);
-  float dfx = medFx - pmx, dfy = medFy - pmy;
-  prevFgx = fgx;
-  prevFgy = fgy;
-  // Wake on decisive events. The per-frame threshold is deliberately well
-  // above sensor noise — a jittering IMU must not keep the bed awake
-  // forever (that is what stopped a vertical bed from ever settling).
-  // Slow leans are caught by the anchor drift below instead.
-  bool stirred = dfx * dfx + dfy * dfy > 40.0f * 40.0f || jolt > 0.2f ||
-                 fabsf_(rotOmega) > 0.3f;
-  quietT = stirred ? 0.0f : quietT + dt;
-  if (stirred || deepOv > 0 || movingCount > 6) {
-    activity = 0.3f;
-  }
-  // Anchor drift on the LOW-PASSED field: zero-mean noise averages out of
-  // it, but any real lean — however slow — walks it away from the anchor
-  // and wakes the bed. This is what keeps "no dead zone" and "settles while
-  // held still" from being contradictory requirements.
-  smoothFx += (fgx - smoothFx) * fminf_(1.0f, 3.0f * dt);
-  smoothFy += (fgy - smoothFy) * fminf_(1.0f, 3.0f * dt);
-  if (anchored) {
-    float ax2 = smoothFx - anchorFx, ay2 = smoothFy - anchorFy;
-    // ~0.013 g ≈ 0.8° of lean: far finer than any deliberate tilt, with
-    // enough margin that filtered sensor noise cannot trip it.
-    if (ax2 * ax2 + ay2 * ay2 > 12.0f * 12.0f) activity = 0.3f;
-  }
-  activity -= dt;
-  if (activity <= 0.0f) {
-    if (!anchored) {
-      anchored = true;
-      anchorFx = smoothFx;
-      anchorFy = smoothFy;
-    }
-    draw();
-    return;
-  }
-  anchored = false;
+  // The sim ALWAYS runs. There is no sleep or settle state: nothing is ever
+  // frozen, quieted or gated, so the sand stays live and responds to the
+  // faintest input at any moment. (Every stopping mechanism this once had —
+  // sleep, wake thresholds, settle ramps, slow-grain quench — is gone.
+  // Motion is removed only by real friction.)
 
   // Effort policy, bounded at both ends:
   //  - impact mode (fast, not yet crushed): a third substep — finer steps
@@ -424,21 +391,18 @@ void update(float dt) {
   //    overlaps): the compression is unresolvable this instant, so cap the
   //    sweeps instead of burning the frame budget — the bed springs back
   //    the moment the crush ends and full effort resumes.
-  int sub, iters;
-  if (deepOv > 150)          { sub = 2; iters = 2; }
-  else if (maxSp > 140.0f)   { sub = 3; iters = ITERS; }
-  else                       { sub = 2; iters = ITERS; }
+  // Substeps are capped at 2. A third substep was previously used for fast
+  // impacts, but on the real ESP32 it triggered constantly and tripled the
+  // solver cost (14-20 ms/frame, well past the frame budget) for no visible
+  // benefit. Sweeps stay at 3: that third relaxation sweep is what lets the
+  // static-friction regime actually lock a resting pile.
+  int sub = 2;
+  int iters = deepOv > 150 ? 2 : ITERS;
   float h = fminf_(dt, 1.0f / 30.0f) / sub;
   if (h <= 0.0f) { draw(); return; }
-  // Settle ramp keyed to how long the board has been held still: zero while
-  // you are actually playing (full liveliness), then rising smoothly after
-  // ~0.4 s of quiet so the last motion fades out over about a second and
-  // the bed sleeps of its own accord. Sensor noise cannot out-run it, so a
-  // vertical bed settles exactly like a flat one — and nothing is ever cut
-  // dead by a threshold, which is what made stops feel abrupt.
-  float settle = quietT > 0.4f ? fminf_(14.0f, 9.0f * (quietT - 0.4f)) : 0.0f;
+  // NO artificial settling anywhere. Motion is only ever removed by real
+  // physics — contact friction, wall drag and inelastic collisions.
   maxSp = 0;
-  movingCount = 0;
   deepOv = 0;
 
   for (int s = 0; s < sub; s++) {
@@ -506,12 +470,24 @@ void update(float dt) {
         }
       }
       // Walls: hard clamp plus tangential friction while touching, so a
-      // sliding bed drags against the floor instead of skating forever.
+      // sliding bed drags against the floor instead of skating forever —
+      // with the same static regime as grain contacts (a barely-creeping
+      // grain sticks to the wall outright).
+      constexpr float WSTICK = 0.004f;
       for (int i = 0; i < NP; i++) {
-        if (pxs[i] < 0.5f)     { pxs[i] = 0.5f;     pys[i] -= (pys[i] - oys[i]) * WALL_MU; }
-        if (pxs[i] > W - 0.5f) { pxs[i] = W - 0.5f; pys[i] -= (pys[i] - oys[i]) * WALL_MU; }
-        if (pys[i] < 0.5f)     { pys[i] = 0.5f;     pxs[i] -= (pxs[i] - oxs[i]) * WALL_MU; }
-        if (pys[i] > H - 0.5f) { pys[i] = H - 0.5f; pxs[i] -= (pxs[i] - oxs[i]) * WALL_MU; }
+        bool hx = false, hy = false;
+        if (pxs[i] < 0.5f)     { pxs[i] = 0.5f;     hx = true; }
+        if (pxs[i] > W - 0.5f) { pxs[i] = W - 0.5f; hx = true; }
+        if (pys[i] < 0.5f)     { pys[i] = 0.5f;     hy = true; }
+        if (pys[i] > H - 0.5f) { pys[i] = H - 0.5f; hy = true; }
+        if (hx) {
+          float slip = pys[i] - oys[i];
+          pys[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : WALL_MU);
+        }
+        if (hy) {
+          float slip = pxs[i] - oxs[i];
+          pxs[i] -= slip * (fabsf_(slip) < WSTICK ? 1.0f : WALL_MU);
+        }
       }
     }
 
@@ -524,11 +500,9 @@ void update(float dt) {
     }
 
     float invH = 1.0f / h;
-    // Mild bulk dissipation (negligible on free fall, but it quenches the
-    // post-avalanche simmer), plus a gentle brake on already-slow particles
-    // so beds go still without flows stopping abruptly mid-roll.
-    float damp = fmaxf_(0.0f, 1.0f - (1.0f + settle) * h);
-    float quench = fmaxf_(0.0f, 1.0f - (3.0f + settle) * h);
+    // A whisper of bulk drag (air resistance, essentially) — enough to keep
+    // the integrator from gaining energy, far too little to stop a flow.
+    float damp = fmaxf_(0.0f, 1.0f - 0.3f * h);
     for (int i = 0; i < NP; i++) {
       // Contacts are dissipative: the constraint solver may redirect or slow
       // a particle freely, but may raise its speed only slower than gravity
@@ -563,16 +537,9 @@ void update(float dt) {
       }
       vx *= damp;
       vy *= damp;
-      if (sp2 < 64.0f) {
-        vx *= quench;
-        vy *= quench;
-      }
       vxs[i] = vx;
       vys[i] = vy;
       if (sp2 > maxSp * maxSp) maxSp = sqrtf_(sp2);
-      // Count movers, not the single fastest grain: one jittering grain
-      // must not hold the whole bed awake indefinitely.
-      if (sp2 > 100.0f) movingCount++;   // >10 px/s counts as "in motion"
     }
   }
 

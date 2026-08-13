@@ -105,6 +105,7 @@ tick(0, 0, BTN_CLICK); tick();          // FLIP -> ON
 tick(0, 0, BTN_DOWN); tick();
 tick(0, 0, BTN_CLICK); tick();          // BRIGHT 100 -> 20
 check("brightness cycles", e.pt_brightness() === 20);
+tick(0, 0, BTN_DOWN); tick();           // REFRESH (hardware-only, skipped here)
 tick(0, 0, BTN_DOWN); tick();
 tick(0, 0, BTN_CLICK); tick();          // SFX 80 -> 100
 check("sfx volume cycles", e.pt_sfx_volume() === 100);

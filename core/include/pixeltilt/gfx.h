@@ -6,13 +6,22 @@ namespace pt {
 constexpr int SCREEN_W = 64;
 constexpr int SCREEN_H = 64;
 
+// RGB888 as far as games are concerned, but the panel is not a 24-bit
+// display: each channel runs through a CIE 1931 lightness curve on its way to
+// an 8-bit PWM duty, which leaves 174 distinct levels — and only 12 of them
+// below code 64. Codes 0-4 are simply off. Keep detail out of the shadows,
+// dim things by picking a darker hue rather than a lower value, and expect
+// gradients to band at the bottom. The emulator shows exactly this (see
+// README "Color on the panel").
 struct Color {
   uint8_t r, g, b;
 };
 
 constexpr Color rgb(uint8_t r, uint8_t g, uint8_t b) { return {r, g, b}; }
 
-// Hue [0,360), saturation and value [0,1]. Handy for LED-friendly palettes.
+// Hue [0,360), saturation and value [0,1]. The panel's narrow-band LEDs make
+// saturated hues the ones that read best; below v ~ 0.15 everything collapses
+// toward black.
 Color hsv(float h, float s, float v);
 
 constexpr Color BLACK   = {0, 0, 0};

@@ -101,6 +101,11 @@ compiler install.
 | Wheel up / click / down | `A` / `S` / `D` (Enter also clicks) |
 | Pause menu (in game) | hold `S` (device: hold wheel press ~0.7 s) |
 
+The panel view is a simulation of the real matrix, not a scaled-up
+screenshot: individual LED dots with the dark gaps between them, and the
+panel's actual color response — see [Color on the
+panel](#color-on-the-panel) for what that costs you.
+
 Holding the wheel press in a game opens the pause menu: **resume**, **settings**
 or **main menu**. The main menu also has **SCORES** (top-3 table per game) and
 **SETTINGS** — screen rotation in 90° steps, brightness, SFX and music
@@ -203,6 +208,51 @@ Rules of the road: no heap, no static constructors, keep state in plain
 globals and reset it in `init()`. The engine owns the menu and the hold-CLICK
 pause menu — games never need to handle either (just avoid gameplay that
 requires holding the wheel press).
+
+### Color on the panel
+
+You write RGB888, but the panel is a long way from a 24-bit display, and the
+difference is big enough to design around. On the device each channel goes
+through the HUB75 driver's CIE 1931 lightness curve before it becomes an
+8-bit binary-coded-modulation duty cycle, and that curve spends its
+resolution where the eye can use it — at the top:
+
+| What you write | What the panel does |
+| --- | --- |
+| 256 codes per channel | **174** distinct light levels |
+| codes 0–4 | off, indistinguishable from black |
+| codes 0–63 (the bottom quarter) | **12** levels total |
+| code 128 (mid grey) | 18 % of full light |
+| code 255 | full — and *very* bright up close |
+
+So, in practice:
+
+- **Nothing subtle survives in the shadows.** `rgb(3,3,3)` is black,
+  `rgb(20,20,20)` and `rgb(24,24,24)` are the same pixel. If two dark things
+  must read as different, separate them by ~16 codes down there, not 2.
+- **Dim by hue, not by value.** A dark-blue background at `v=0.1` is either
+  invisible or one flat block; a saturated hue at `v=0.35` still reads as
+  color.
+- **Ramps band at the bottom.** A 64-pixel gradient from black has ~12 steps
+  in its first quarter, so fades and soft shadows show contours. Dither or
+  start the ramp above code 64.
+- **Saturated primaries win.** The LEDs are narrow-band emitters — pure red,
+  green, blue, cyan, magenta and yellow are brilliant, while pastels and
+  near-greys wash out into "dim white" from a metre away.
+- **One pixel is one LED.** With ~1 mm dies on a 3 mm pitch there is no
+  anti-aliasing to hide behind: single-pixel detail reads as a dot, and thin
+  diagonal lines shimmer.
+- **Brightness scales all of it.** The brightness setting dims the emitted
+  light linearly (it shortens the drive time), so a picture that only just
+  works at 100 % disappears at 30 %.
+
+The emulator reproduces this pipeline — same CIE table as the firmware's
+panel library, then the brightness setting, then round LED dots on a black
+mask with the real gap between them, pushed toward the panel's
+narrow-band-primary look because sRGB cannot actually show how pure these
+LEDs are ([`frontend/src/emulator/panel.ts`](frontend/src/emulator/panel.ts)).
+What crushes to black in the browser crushes to black on the hardware, so the
+bench is a fair place to pick colors.
 
 Ships with three examples: **Tilt Maze** (roll to the goal, avoid holes),
 **Snake** (dominant tilt axis steers), **Breakout** (tilt = paddle position).

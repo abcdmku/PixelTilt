@@ -36,7 +36,7 @@ export function Bench() {
       ) : (
         <main className="bench-main">
           <section className="stage">
-            <MatrixDisplay registerCanvases={emu.registerCanvases} />
+            <MatrixDisplay registerCanvas={emu.registerCanvas} />
             <div className="transport">
               <button onClick={() => emu.setPaused(!emu.paused)}>
                 {emu.paused ? "RESUME" : "PAUSE"}
