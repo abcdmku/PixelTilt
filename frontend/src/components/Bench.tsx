@@ -30,7 +30,6 @@ export function Bench(props: { ui: VariantId; onUi(id: VariantId): void }) {
         registerCanvas={emu.registerCanvas}
         setPadTilt={emu.setPadTilt}
         setVirtualSpin={emu.setVirtualSpin}
-        setVirtualShake={emu.setVirtualShake}
         setPadAccel={emu.setPadAccel}
         getPose={emu.getPose}
       />
@@ -48,8 +47,11 @@ export function Bench(props: { ui: VariantId; onUi(id: VariantId): void }) {
         setSfxVolume={emu.setHostSfxVolume}
         setMusicVolume={emu.setHostMusicVolume}
         audioOn={emu.audioOn}
+        phoneDofsAvailable={emu.phoneDofsAvailable}
+        phoneDofsEnabled={emu.phoneDofsEnabled}
+        setPhoneDofsEnabled={emu.setPhoneDofsEnabled}
       />
-      <Help />
+      <Help phoneDofsAvailable={emu.phoneDofsAvailable} />
     </>
   );
 }

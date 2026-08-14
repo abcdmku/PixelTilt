@@ -521,6 +521,31 @@ body {
   outline: none;
 }
 
+.sensor-toggle {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--mute);
+  background: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.sensor-toggle:hover,
+.sensor-toggle:focus-visible {
+  color: var(--paper);
+  outline: none;
+}
+
+.sensor-toggle.on {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(74, 222, 128, 0.08);
+}
+
 .hud-links {
   position: absolute;
   top: calc(10px + env(safe-area-inset-top));

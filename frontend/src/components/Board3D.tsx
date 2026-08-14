@@ -7,14 +7,15 @@ const REST_X = 10; // desk angle so the slab's thickness reads at rest
 const CORNER = 0.52;
 const TILT_SCALE = 0.42;
 const SPIN_FULL = 3; // rad/s at virtualSpin = 1, matches the emulator hook
-const SHAKE_SPEED = 380; // centroid px/s that counts as a shake
+const HOLD_TO_SHIFT_MS = 420;
+const HOLD_SLOP_PX = 8;
 const YAW_VISUAL = 8; // degrees of visual twist per rad/s of keyboard spin
 const G_VEL = 2300; // px/s of slide that equals 1 g of lean
 const G_DECEL = 34000; // px/s² of stop that equals 1 g
 const G_MAX = 0.55;
 const G_MAX_DECEL = 0.34;
 
-type Mode = "none" | "tilt" | "yaw" | "dual" | "shift";
+type Mode = "none" | "tilt" | "yaw" | "shift";
 type Pt = { x: number; y: number };
 
 function clamp(v: number, lo = -1, hi = 1) {
@@ -37,13 +38,12 @@ function isCorner(p: Pt, r: DOMRect) {
   return Math.abs(x) > CORNER && Math.abs(y) > CORNER;
 }
 
-/** The panel as a physical object: left-drag to tilt, right-drag to spin,
- *  left+right drag to slide, two fingers to spin or shake. */
+/** The panel as a physical object: drag to tilt, drag a corner or right-drag
+ *  to spin, hold then drag or left+right drag to slide. */
 export function Board3D(props: {
   registerCanvas(main: HTMLCanvasElement | null): void;
   setPadTilt(t: { x: number; y: number } | null): void;
   setVirtualSpin(dir: number): void;
-  setVirtualShake(on: boolean): void;
   setPadAccel(a: { x: number; y: number; z: number } | null): void;
   getPose(): EmulatorPose;
 }) {
@@ -51,7 +51,7 @@ export function Board3D(props: {
   const slotRef = useRef<HTMLDivElement>(null);
   const rigRef = useRef<HTMLDivElement>(null);
   const shadowRef = useRef<HTMLDivElement>(null);
-  const { setPadTilt, setVirtualSpin, setVirtualShake, setPadAccel, getPose } = props;
+  const { setPadTilt, setVirtualSpin, setPadAccel, getPose } = props;
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -65,7 +65,8 @@ export function Board3D(props: {
     let mode: Mode = "none";
     let last: Pt | null = null;
     let lastAngle = 0;
-    let lastCentroid: Pt | null = null;
+    let touchStart: Pt | null = null;
+    let holdTimer: number | null = null;
     let lastT = 0;
     let hoverCorner = false;
     let mouseLeft = false;
@@ -145,6 +146,28 @@ export function Board3D(props: {
     const paintCursor = () => {
       stage.dataset.mode = mode === "none" ? (hoverCorner ? "yaw" : "tilt") : mode;
       stage.classList.toggle("is-down", mode !== "none");
+    };
+
+    const cancelHold = () => {
+      if (holdTimer === null) return;
+      window.clearTimeout(holdTimer);
+      holdTimer = null;
+    };
+
+    const armHoldToShift = (pointerId: number) => {
+      cancelHold();
+      holdTimer = window.setTimeout(() => {
+        holdTimer = null;
+        if (!pointers.has(pointerId) || !last) return;
+        mode = "shift";
+        velX = 0;
+        velY = 0;
+        gX = 0;
+        gY = 0;
+        setPadTilt(null);
+        setVirtualSpin(0);
+        paintCursor();
+      }, HOLD_TO_SHIFT_MS);
     };
 
     const enterMouseMode = (p: Pt) => {
@@ -257,38 +280,29 @@ export function Board3D(props: {
       if (ev.pointerType === "mouse" && ev.button > 0) return;
 
       const now = performance.now();
-      // A new primary pointer means the previous gesture ended (often without
-      // a pointerup, on hidden tabs). Keep non-primary so two-finger still works.
-      if (ev.isPrimary) {
-        pointers.clear();
-        mode = "none";
-      }
-      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      // Touch and pen use one pointer. Extra fingers have no simulator action.
+      if (!ev.isPrimary || pointers.size > 0) return;
+      pointers.clear();
+      mode = "none";
+      const p = { x: ev.clientX, y: ev.clientY };
+      pointers.set(ev.pointerId, p);
       try {
         stage.setPointerCapture(ev.pointerId);
       } catch {
         // capture is a nicety
       }
-      if (pointers.size === 1) {
-        const p = { x: ev.clientX, y: ev.clientY };
-        const r = boardRect();
-        const pose = getPose();
-        visual.tiltX = pose.tilt.x;
-        visual.tiltY = -pose.tilt.y;
-        mode = isCorner(p, r) ? "yaw" : "tilt";
-        last = p;
-        lastAngle = centerAngle(p, r);
-        lastT = now;
-        if (mode === "tilt") setPadTilt(gameTilt());
-        apply();
-      } else if (pointers.size === 2) {
-        mode = "dual";
-        const [a, b] = [...pointers.values()];
-        lastAngle = Math.atan2(b.y - a.y, b.x - a.x);
-        lastCentroid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        lastT = now;
-        setVirtualSpin(0);
-      }
+      const r = boardRect();
+      const pose = getPose();
+      visual.tiltX = pose.tilt.x;
+      visual.tiltY = -pose.tilt.y;
+      mode = isCorner(p, r) ? "yaw" : "tilt";
+      last = p;
+      touchStart = p;
+      lastAngle = centerAngle(p, r);
+      lastT = now;
+      if (mode === "tilt") setPadTilt(gameTilt());
+      armHoldToShift(ev.pointerId);
+      apply();
       paintCursor();
     };
 
@@ -341,7 +355,19 @@ export function Board3D(props: {
       const dt = Math.max(0.008, (now - lastT) / 1000);
       const r = boardRect();
 
-      if (mode === "tilt" && last) {
+      if (touchStart && Math.hypot(p.x - touchStart.x, p.y - touchStart.y) > HOLD_SLOP_PX) {
+        cancelHold();
+      }
+
+      if (mode === "shift" && last) {
+        const dx = p.x - last.x;
+        const dy = p.y - last.y;
+        const lim = shiftLimit();
+        visual.shiftX = clamp(visual.shiftX + dx, -lim.x, lim.x);
+        visual.shiftY = clamp(visual.shiftY + dy, -lim.y, lim.y);
+        if (Math.hypot(dx, dy) >= 0.75) shoveFromVel(dx / dt, dy / dt);
+        last = p;
+      } else if (mode === "tilt" && last) {
         visual.tiltX = clamp(visual.tiltX + (p.x - last.x) / (r.width * TILT_SCALE));
         visual.tiltY = clamp(visual.tiltY - (p.y - last.y) / (r.height * TILT_SCALE));
         last = p;
@@ -354,24 +380,6 @@ export function Board3D(props: {
         lastAngle = ang;
         setVirtualSpin(clamp(d / dt / SPIN_FULL));
         setPadTilt(gameTilt());
-      } else if (mode === "dual") {
-        const pts = [...pointers.values()];
-        if (pts.length >= 2) {
-          const [a, b] = pts;
-          const ang = Math.atan2(b.y - a.y, b.x - a.x);
-          const d = unwrap(ang - lastAngle);
-          visual.yaw += (d * 180) / Math.PI;
-          lastAngle = ang;
-          setVirtualSpin(clamp(d / dt / SPIN_FULL));
-          const c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-          if (lastCentroid) {
-            const speed = Math.hypot(c.x - lastCentroid.x, c.y - lastCentroid.y) / dt;
-            const on = speed > SHAKE_SPEED;
-            visual.shaking = on;
-            setVirtualShake(on);
-          }
-          lastCentroid = c;
-        }
       }
       lastT = now;
       apply();
@@ -459,6 +467,7 @@ export function Board3D(props: {
       }
 
       if (!pointers.has(ev.pointerId)) return;
+      cancelHold();
       pointers.delete(ev.pointerId);
       try {
         stage.releasePointerCapture(ev.pointerId);
@@ -468,36 +477,27 @@ export function Board3D(props: {
       if (pointers.size === 0) {
         mode = "none";
         last = null;
-        lastCentroid = null;
+        touchStart = null;
         setPadTilt(null);
         setVirtualSpin(0);
-        setVirtualShake(false);
         visual.shaking = false;
-      } else if (pointers.size === 1) {
-        const remain = [...pointers.values()][0];
-        mode = "tilt";
-        last = remain;
-        lastT = performance.now();
-        setVirtualSpin(0);
-        setVirtualShake(false);
-        visual.shaking = false;
-        setPadTilt(gameTilt());
+        coastG();
       }
       paintCursor();
     };
 
     const onLost = () => {
+      cancelHold();
       pointers.clear();
       mouseLeft = false;
       mouseRight = false;
       mouseId = null;
       mode = "none";
       last = null;
-      lastCentroid = null;
+      touchStart = null;
       setPadTilt(null);
       setVirtualSpin(0);
       setPadAccel(null);
-      setVirtualShake(false);
       visual.shaking = false;
       paintCursor();
     };
@@ -535,7 +535,7 @@ export function Board3D(props: {
       stage.removeEventListener("gesturechange", stopGesture);
       window.removeEventListener("blur", onLost);
     };
-  }, [getPose, setPadAccel, setPadTilt, setVirtualShake, setVirtualSpin]);
+  }, [getPose, setPadAccel, setPadTilt, setVirtualSpin]);
 
   return (
     <div

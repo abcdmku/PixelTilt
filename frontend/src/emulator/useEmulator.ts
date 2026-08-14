@@ -36,6 +36,48 @@ const TILT_ATTACK = 6.5; // how fast held arrows ramp tilt (per second-ish)
 const TILT_RELEASE = 9.0;
 const SPIN_RATE = 3.0; // rad/s of twist while Q/E is held
 const SHAKE_G = 1.3; // peak synthetic shake amplitude while Space is held, in g
+const PHONE_TILT_DEG = 28;
+const PHONE_ACCEL_DEADZONE_G = 0.035;
+const PHONE_SHAKE_THRESHOLD_G = 0.5;
+const PHONE_SENSOR_STALE_MS = 300;
+
+type SensorPermission = "granted" | "denied";
+type PermissionedEventConstructor = {
+  requestPermission?: () => Promise<SensorPermission>;
+};
+
+function phoneDofsSupported(): boolean {
+  if (typeof window === "undefined" || !window.isSecureContext) return false;
+  const touchDevice = navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+  const hasMotion = typeof window.DeviceMotionEvent === "function";
+  const hasOrientation = typeof window.DeviceOrientationEvent === "function";
+  return touchDevice && (hasMotion || hasOrientation);
+}
+
+function screenAngle(): number {
+  const modern = window.screen.orientation?.angle;
+  const legacy = (window as Window & { orientation?: number }).orientation;
+  return ((modern ?? legacy ?? 0) * Math.PI) / 180;
+}
+
+function toScreenAxes(x: number, y: number): { x: number; y: number } {
+  const a = screenAngle();
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  return { x: x * cos + y * sin, y: -x * sin + y * cos };
+}
+
+function deadzone(v: number, threshold: number): number {
+  if (Math.abs(v) <= threshold) return 0;
+  return v - Math.sign(v) * threshold;
+}
+
+function angleDelta(a: number, b: number): number {
+  let d = a - b;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
 
 // ESP32 performance emulation: one desktop-WASM millisecond of tick time is
 // treated as this many milliseconds on the 240 MHz ESP32-S3. Rough
@@ -122,6 +164,10 @@ export interface EmulatorState {
   esp32Perf: boolean;
   /** Simulated device frame rate while esp32Perf is on (60 = keeping up). */
   esp32Fps: number;
+  /** Whether this touch device exposes orientation or motion sensors. */
+  phoneDofsAvailable: boolean;
+  /** Whether available phone sensors currently control the emulator. */
+  phoneDofsEnabled: boolean;
 }
 
 export interface EmulatorControls {
@@ -149,6 +195,8 @@ export interface EmulatorControls {
   setEsp32Perf(on: boolean): void;
   /** `squares` is the frame variant: hard pixels, no LED-dot mask. */
   setPixelStyle(style: "dots" | "squares"): void;
+  /** Request sensor permission and use every phone DOF the browser exposes. */
+  setPhoneDofsEnabled(on: boolean): Promise<void>;
 }
 
 export function useEmulator(): EmulatorState & EmulatorControls {
@@ -167,6 +215,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const [musicVol, setMusicVol] = useState(() => readHostVolume().music ?? 60);
   const [esp32Perf, setEsp32PerfState] = useState(false);
   const [esp32Fps, setEsp32Fps] = useState(60);
+  const [phoneDofsAvailable, setPhoneDofsAvailable] = useState(phoneDofsSupported);
+  const [phoneDofsEnabled, setPhoneDofsEnabledState] = useState(false);
 
   const emu = useRef<Emulator | null>(null);
   const keys = useRef<Set<string>>(new Set());
@@ -186,9 +236,16 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const savedVol = readHostVolume();
   const hostSfx = useRef<number | null>(savedVol.sfx);
   const hostMusic = useRef<number | null>(savedVol.music);
-  // Real device motion (phones): pseudo-force in g, screen axes; stamped so a
-  // stalled event stream decays to zero instead of sticking.
-  const motion = useRef({ x: 0, y: 0, z: 0, at: 0 });
+  // Phone sensors stay off until the user enables them. The refs avoid a
+  // render on every high-frequency orientation or motion sample.
+  const phoneDofsEnabledRef = useRef(false);
+  const phoneSources = useRef({ orientation: false, motion: false });
+  const phoneTilt = useRef({ x: 0, y: 0, at: 0 });
+  const phoneOrientationZero = useRef<{ x: number; y: number } | null>(null);
+  const phoneMotion = useRef({ x: 0, y: 0, z: 0, at: 0 });
+  const phoneSpin = useRef({ value: 0, at: 0 });
+  const phoneYaw = useRef({ value: 0, at: 0 });
+  const phoneRotationRateAt = useRef(0);
   // ESP32 performance emulation state (see ESP32_SLOWDOWN).
   const esp32Ref = useRef(false);
   const devBusyUntil = useRef(0); // host time when the simulated device frame ends
@@ -294,6 +351,66 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     renderDirty.current = true;
   }, []);
 
+  const setPhoneDofsEnabled = useCallback(async (on: boolean) => {
+    const resetSamples = () => {
+      phoneOrientationZero.current = null;
+      phoneTilt.current = { x: 0, y: 0, at: 0 };
+      phoneMotion.current = { x: 0, y: 0, z: 0, at: 0 };
+      phoneSpin.current = { value: 0, at: 0 };
+      phoneYaw.current = { value: 0, at: 0 };
+      phoneRotationRateAt.current = 0;
+    };
+
+    if (!on) {
+      phoneDofsEnabledRef.current = false;
+      phoneSources.current = { orientation: false, motion: false };
+      resetSamples();
+      setPhoneDofsEnabledState(false);
+      return;
+    }
+    if (!phoneDofsAvailable) return;
+
+    const ask = (supported: boolean, ctor: PermissionedEventConstructor | undefined) => {
+      if (!supported || !ctor) return Promise.resolve(false);
+      if (!ctor.requestPermission) return Promise.resolve(true);
+      try {
+        // Start every permission request in this click handler before awaiting.
+        return ctor.requestPermission.call(ctor).then((result) => result === "granted", () => false);
+      } catch {
+        return Promise.resolve(false);
+      }
+    };
+
+    const hasMotion = typeof window.DeviceMotionEvent === "function";
+    const hasOrientation = typeof window.DeviceOrientationEvent === "function";
+    const motionCtor = hasMotion
+      ? (window.DeviceMotionEvent as typeof DeviceMotionEvent & PermissionedEventConstructor)
+      : undefined;
+    const orientationCtor = hasOrientation
+      ? (window.DeviceOrientationEvent as typeof DeviceOrientationEvent & PermissionedEventConstructor)
+      : undefined;
+    const motionRequest = ask(hasMotion, motionCtor);
+    const orientationRequest = ask(hasOrientation, orientationCtor);
+    const [motionAllowed, orientationAllowed] = await Promise.all([
+      motionRequest,
+      orientationRequest,
+    ]);
+
+    if (!motionAllowed && !orientationAllowed) {
+      phoneDofsEnabledRef.current = false;
+      phoneSources.current = { orientation: false, motion: false };
+      resetSamples();
+      setPhoneDofsEnabledState(false);
+      setPhoneDofsAvailable(false);
+      return;
+    }
+
+    resetSamples();
+    phoneSources.current = { orientation: orientationAllowed, motion: motionAllowed };
+    phoneDofsEnabledRef.current = true;
+    setPhoneDofsEnabledState(true);
+  }, [phoneDofsAvailable]);
+
   const setEsp32Perf = useCallback((on: boolean) => {
     esp32Ref.current = on;
     fixedLagMs.current = 0;
@@ -389,19 +506,78 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       if (ev.button === 1) ev.preventDefault();
     };
 
-    // Phones: devicemotion's `acceleration` is the device's kinematic
-    // acceleration a; the pseudo-force a loose object feels is -a. Map device
-    // axes (x right, y toward top of screen) onto screen axes (x right,
-    // y toward the player) and convert m/s^2 -> g.
+    // Device motion supplies translation and rotation rate. Filter the raw
+    // acceleration so ordinary hand tremor does not become an in-game shake.
     const onMotion = (ev: DeviceMotionEvent) => {
+      if (!phoneDofsEnabledRef.current || !phoneSources.current.motion) return;
       const a = ev.acceleration;
-      if (!a || a.x == null) return;
-      motion.current = {
-        x: -a.x / 9.81,
-        y: (a.y ?? 0) / 9.81,
-        z: -(a.z ?? 0) / 9.81,
+      const rotation = ev.rotationRate;
+      const previous = phoneMotion.current;
+      const raw = a && a.x != null
+        ? toScreenAxes(-a.x / 9.81, (a.y ?? 0) / 9.81)
+        : { x: 0, y: 0 };
+      const rawZ = a?.z == null ? 0 : -a.z / 9.81;
+      const mix = 0.18;
+      phoneMotion.current = {
+        x: previous.x + (deadzone(raw.x, PHONE_ACCEL_DEADZONE_G) - previous.x) * mix,
+        y: previous.y + (deadzone(raw.y, PHONE_ACCEL_DEADZONE_G) - previous.y) * mix,
+        z: previous.z + (deadzone(rawZ, PHONE_ACCEL_DEADZONE_G) - previous.z) * mix,
         at: performance.now(),
       };
+      if (rotation?.alpha != null) {
+        const rawSpin = (rotation.alpha * Math.PI) / 180;
+        const previousSpin = phoneSpin.current.value;
+        phoneSpin.current = {
+          value: previousSpin + (deadzone(rawSpin, 0.06) - previousSpin) * 0.24,
+          at: performance.now(),
+        };
+        phoneRotationRateAt.current = performance.now();
+      }
+    };
+
+    // Orientation provides the two tilt axes. Enabling the switch captures
+    // the current holding angle as neutral, just like the hardware boot zero.
+    const onOrientation = (ev: DeviceOrientationEvent) => {
+      if (!phoneDofsEnabledRef.current || !phoneSources.current.orientation) return;
+      if (ev.beta == null || ev.gamma == null) return;
+      const sample = toScreenAxes(ev.gamma, ev.beta);
+      if (!phoneOrientationZero.current) phoneOrientationZero.current = sample;
+      const zero = phoneOrientationZero.current;
+      const targetX = Math.max(-1, Math.min(1, angleDelta(sample.x, zero.x) / PHONE_TILT_DEG));
+      const targetY = Math.max(-1, Math.min(1, angleDelta(sample.y, zero.y) / PHONE_TILT_DEG));
+      const previous = phoneTilt.current;
+      phoneTilt.current = {
+        x: previous.x + (deadzone(targetX, 0.025) - previous.x) * 0.2,
+        y: previous.y + (deadzone(targetY, 0.025) - previous.y) * 0.2,
+        at: performance.now(),
+      };
+
+      if (ev.alpha != null) {
+        const now = performance.now();
+        const previousYaw = phoneYaw.current;
+        const dt = (now - previousYaw.at) / 1000;
+        // Some browsers omit rotationRate. Derive yaw from orientation there.
+        if (
+          previousYaw.at > 0 &&
+          dt >= 0.008 &&
+          dt <= 0.25 &&
+          now - phoneRotationRateAt.current >= PHONE_SENSOR_STALE_MS
+        ) {
+          const rawSpin = (angleDelta(ev.alpha, previousYaw.value) * Math.PI) / 180 / dt;
+          const previousSpin = phoneSpin.current.value;
+          phoneSpin.current = {
+            value: previousSpin + (deadzone(rawSpin, 0.06) - previousSpin) * 0.24,
+            at: now,
+          };
+        }
+        phoneYaw.current = { value: ev.alpha, at: now };
+      }
+    };
+
+    const rezeroPhone = () => {
+      phoneOrientationZero.current = null;
+      phoneTilt.current = { x: 0, y: 0, at: 0 };
+      phoneYaw.current = { value: 0, at: 0 };
     };
 
     window.addEventListener("keydown", keyDown);
@@ -412,6 +588,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("auxclick", onAuxClick);
     window.addEventListener("devicemotion", onMotion);
+    window.addEventListener("deviceorientation", onOrientation);
+    window.addEventListener("orientationchange", rezeroPhone);
+    window.screen.orientation?.addEventListener("change", rezeroPhone);
     installAudioUnlock();
 
     let last = performance.now();
@@ -426,10 +605,15 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       const dt = elapsedMs / 1000;
       last = now;
 
-      // Smooth keyboard tilt toward its target; a pad drag overrides it.
+      // A direct panel drag wins over phone sensors, which win over keys.
       const k = keys.current;
       if (padTilt.current) {
         tilt.current = { ...padTilt.current };
+      } else if (
+        phoneDofsEnabledRef.current &&
+        now - phoneTilt.current.at < PHONE_SENSOR_STALE_MS
+      ) {
+        tilt.current = { x: phoneTilt.current.x, y: phoneTilt.current.y };
       } else {
         const tx = (k.has("ArrowRight") ? 1 : 0) - (k.has("ArrowLeft") ? 1 : 0);
         const ty = (k.has("ArrowDown") ? 1 : 0) - (k.has("ArrowUp") ? 1 : 0);
@@ -437,31 +621,41 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         tilt.current.x += (tx - tilt.current.x) * Math.min(1, rate(tx) * dt);
         tilt.current.y += (ty - tilt.current.y) * Math.min(1, rate(ty) * dt);
       }
-      // Twist: keyboard and the on-screen buttons drive the same rate.
+      // Twist combines direct controls with the phone's screen-normal rate.
       const spinDir = Math.max(
         -1,
         Math.min(1, (k.has("KeyE") ? 1 : 0) - (k.has("KeyQ") ? 1 : 0) + virtualSpin.current),
       );
-      spin.current += (spinDir * SPIN_RATE - spin.current) * Math.min(1, 12 * dt);
+      const phoneSpinRate = phoneDofsEnabledRef.current &&
+        now - phoneSpin.current.at < PHONE_SENSOR_STALE_MS
+        ? phoneSpin.current.value
+        : 0;
+      const spinTarget = Math.max(-6, Math.min(6, spinDir * SPIN_RATE + phoneSpinRate));
+      spin.current += (spinTarget - spin.current) * Math.min(1, 12 * dt);
 
       let buttons = virtualButtons.current;
       for (const code of k) buttons |= BUTTON_KEYS[code] ?? 0;
       if (wheelClick.current) buttons |= BTN_CLICK;
 
-      // Shake: held Space / the SHAKE button synthesizes a noisy burst;
-      // otherwise pass through real device motion (zeroed once the event
-      // stream goes stale).
+      // Space synthesizes a noisy burst. Panel shoves and opted-in phone
+      // acceleration feed the same three translation axes.
       let ax = 0, ay = 0, az = 0;
+      let phoneAcceleration = false;
       if (k.has("Space") || virtualShake.current) {
         ax = (Math.random() - 0.5) * 2 * SHAKE_G;
         ay = (Math.random() - 0.5) * 2 * SHAKE_G;
         az = (Math.random() - 0.5) * SHAKE_G;
       } else if (padAccel.current) {
         ({ x: ax, y: ay, z: az } = padAccel.current);
-      } else if (now - motion.current.at < 250) {
-        ({ x: ax, y: ay, z: az } = motion.current);
+      } else if (
+        phoneDofsEnabledRef.current &&
+        now - phoneMotion.current.at < PHONE_SENSOR_STALE_MS
+      ) {
+        ({ x: ax, y: ay, z: az } = phoneMotion.current);
+        phoneAcceleration = true;
       }
-      const shaking = Math.abs(ax) + Math.abs(ay) + Math.abs(az) > 0.15;
+      const shaking = Math.abs(ax) + Math.abs(ay) + Math.abs(az) >
+        (phoneAcceleration ? PHONE_SHAKE_THRESHOLD_G : 0.15);
       poseRef.current = { tilt: { x: tilt.current.x, y: tilt.current.y }, spin: spin.current, shaking };
 
       let tickCount = 0;
@@ -681,6 +875,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("auxclick", onAuxClick);
       window.removeEventListener("devicemotion", onMotion);
+      window.removeEventListener("deviceorientation", onOrientation);
+      window.removeEventListener("orientationchange", rezeroPhone);
+      window.screen.orientation?.removeEventListener("change", rezeroPhone);
     };
   }, []);
 
@@ -700,6 +897,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     musicVolume: musicVol,
     esp32Perf,
     esp32Fps,
+    phoneDofsAvailable,
+    phoneDofsEnabled,
     registerCanvas,
     launch,
     exitToMenu,
@@ -715,5 +914,6 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     setHostMusicVolume,
     setEsp32Perf,
     setPixelStyle,
+    setPhoneDofsEnabled,
   };
 }

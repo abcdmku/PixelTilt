@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 700" font-family="Segoe UI, Arial, sans-serif">
   <rect width="860" height="700" fill="#f8fafc"/>
 
-  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">HUB75 S3 ⇄ GY-BNO08X — UART-RVC pinout</text>
-  <text x="40" y="70" font-size="13" fill="#64748b">board's RST…IO46 pin header · GY-BNO08X 10-pin breakout · wire by silkscreen name, not position or color</text>
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">UART-RVC pinout: HUB75 S3 to GY-BNO08X</text>
+  <text x="40" y="70" font-size="13" fill="#64748b">The board's RST to IO46 header, the GY-BNO08X 10-pin breakout, and the five wires between them</text>
 
   <!-- ============ S3 board block ============ -->
   <rect x="70" y="100" width="250" height="380" rx="10" fill="#14161c" stroke="#6b7280" stroke-width="2"/>
@@ -55,7 +55,7 @@
     <text x="560" y="184" fill="#ede9fe" font-weight="700">VCC</text>
     <text x="560" y="214" fill="#ede9fe" font-weight="700">GND</text>
     <text x="560" y="244" fill="#a78bfa">SCL</text>
-    <text x="560" y="274" fill="#ede9fe" font-weight="700">SDA — acts as UART TX</text>
+    <text x="560" y="274" fill="#ede9fe" font-weight="700">SDA, which acts as UART TX</text>
     <text x="560" y="304" fill="#a78bfa">AD0</text>
     <text x="560" y="334" fill="#a78bfa">CS</text>
     <text x="560" y="364" fill="#a78bfa">INT</text>
@@ -74,22 +74,22 @@
     <path d="M322,390 C420,390 440,450 538,450" stroke="#dc2626"/>
   </g>
   <g font-size="12" fill="#334155" text-anchor="middle">
-    <g><rect x="360" y="164" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="177">3V3 → VCC · gray</text></g>
-    <g><rect x="360" y="216" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="229">GND → GND · violet</text></g>
-    <g><rect x="352" y="264" width="156" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="277">RX0 ← TX (SDA) · green</text></g>
-    <g><rect x="360" y="368" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="381">GND → PS1 · black</text></g>
-    <g><rect x="360" y="432" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="445">3V3 → PS0 · red</text></g>
+    <g><rect x="360" y="164" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="177">3V3 to VCC, gray</text></g>
+    <g><rect x="360" y="216" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="229">GND to GND, violet</text></g>
+    <g><rect x="352" y="264" width="156" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="277">RX0 from TX (SDA), green</text></g>
+    <g><rect x="360" y="368" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="381">GND to PS1, black</text></g>
+    <g><rect x="360" y="432" width="140" height="18" rx="9" fill="#fff" stroke="#e2e8f0"/><text x="430" y="445">3V3 to PS0, red</text></g>
   </g>
 
   <!-- ============ notes ============ -->
   <rect x="70" y="508" width="720" height="168" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
   <g font-size="13" fill="#475569">
     <text x="90" y="536" font-weight="700" fill="#0f172a" font-size="14">Notes</text>
-    <text x="90" y="560">• PS0 high + PS1 low = UART-RVC mode: the sensor streams tilt at 100 Hz, 115200 baud — no I2C clock stretching.</text>
-    <text x="90" y="582">• RX0 is free for this: the serial console runs over the native USB-C port, not UART0.</text>
-    <text x="90" y="604">• SCL · AD0 · CS · INT · RST stay unconnected. Wire colors match the reference build — trust silkscreen names.</text>
-    <text x="90" y="626">• I2C fallback: strap PS0 and PS1 to GND, wire the 4-pin 1 mm header (3V3 · IO1=SDA · GND · IO2=SCL),</text>
+    <text x="90" y="560">PS0 high and PS1 low select UART-RVC mode. The sensor then streams tilt at 100 Hz, 115200 baud, with no I2C clock stretching.</text>
+    <text x="90" y="582">RX0 is free for this because the serial console runs over the native USB-C port, not UART0.</text>
+    <text x="90" y="604">SCL, AD0, CS, INT and RST stay unconnected. Wire colors match the reference build, but trust the silkscreen names.</text>
+    <text x="90" y="626">To fall back to I2C, strap PS0 and PS1 to GND, wire the 4-pin 1 mm header (3V3, IO1 = SDA, GND, IO2 = SCL),</text>
     <text x="104" y="646">and set IMU_USE_UART_RVC to 0 in firmware/src/board_config.h.</text>
-    <text x="90" y="668">• Tilt rotated? Cycle Settings → TILT on the device. Mirrored? Toggle Settings → FLIP. No reflash needed.</text>
+    <text x="90" y="668">Tilt rotated? Cycle Settings → TILT on the device. Mirrored? Toggle Settings → FLIP. No reflash needed.</text>
   </g>
 </svg>

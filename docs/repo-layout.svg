@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 392" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="1000" height="392" fill="#f8fafc"/>
+
+  <text x="40" y="42" font-size="20" font-weight="700" fill="#0f172a">Where things live</text>
+  <text x="40" y="64" font-size="13" fill="#64748b">Shared code on the left, platform code on the right. Nothing in core/ knows which target it is compiled for.</text>
+
+  <!-- shared column -->
+  <rect x="40" y="92" width="446" height="264" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="62" y="118" font-size="12" font-weight="700" fill="#64748b" letter-spacing="0.6">SHARED, FREESTANDING C++</text>
+
+  <text x="62" y="152" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">core/</text>
+  <g font-size="12" fill="#475569">
+    <text x="62" y="172">Engine, menu, gfx, input, math, audio events and</text>
+    <text x="62" y="189">score storage. No libc, no heap, no allocations.</text>
+  </g>
+
+  <text x="62" y="221" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">games/</text>
+  <g font-size="12" fill="#475569">
+    <text x="62" y="241">One folder per game, plus _template/ to copy from</text>
+    <text x="62" y="258">and generated/game_list.cpp, the registry that</text>
+    <text x="62" y="275">npm run gen rewrites.</text>
+  </g>
+
+  <text x="62" y="307" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">tools/</text>
+  <g font-size="12" fill="#475569">
+    <text x="62" y="327">build-wasm, gen-games, new-game, flash and the</text>
+    <text x="62" y="344">headless smoke test. Node, zero dependencies.</text>
+  </g>
+
+  <!-- platform column -->
+  <rect x="514" y="92" width="446" height="264" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="536" y="118" font-size="12" font-weight="700" fill="#64748b" letter-spacing="0.6">PLATFORM LAYERS</text>
+
+  <text x="536" y="152" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">emulator/</text>
+  <g font-size="12" fill="#475569">
+    <text x="536" y="172">The WASM export shim. In the browser it plays the</text>
+    <text x="536" y="189">part the ESP32 plays on hardware.</text>
+  </g>
+
+  <text x="536" y="221" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">frontend/</text>
+  <g font-size="12" fill="#475569">
+    <text x="536" y="241">React and Vite test bench: LED renderer, draggable</text>
+    <text x="536" y="258">3D panel, game picker, Audio Lab.</text>
+  </g>
+
+  <text x="536" y="307" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">firmware/</text>
+  <g font-size="12" fill="#475569">
+    <text x="536" y="327">ESP32-S3 layer: HUB75 DMA, BNO08x UART-RVC</text>
+    <text x="536" y="344">reader, PCA9557 wheel, NVS settings, ES8311 audio.</text>
+  </g>
+</svg>

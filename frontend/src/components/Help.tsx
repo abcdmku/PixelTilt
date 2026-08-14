@@ -6,7 +6,7 @@ function isPhone(): boolean {
   return window.matchMedia("(pointer: coarse)").matches || window.matchMedia("(hover: none)").matches;
 }
 
-export function Help() {
+export function Help(props: { phoneDofsAvailable: boolean }) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(false);
 
@@ -85,7 +85,11 @@ export function Help() {
             {phone ? (
               <ul>
                 <li>Drag to tilt</li>
-                <li>Two fingers to spin or shake</li>
+                <li>Drag a corner to spin</li>
+                <li>Hold, then drag to move the device</li>
+                {props.phoneDofsAvailable && (
+                  <li>Enable sensors for phone tilt, spin, and movement</li>
+                )}
                 <li>▲ ● ▼ is the wheel</li>
                 <li>Hold ● for the device menu</li>
               </ul>

@@ -36,6 +36,9 @@ export function Hud(props: {
   setSfxVolume(n: number): void;
   setMusicVolume(n: number): void;
   audioOn: boolean;
+  phoneDofsAvailable: boolean;
+  phoneDofsEnabled: boolean;
+  setPhoneDofsEnabled(on: boolean): Promise<void>;
 }) {
   return (
     <div className="hud">
@@ -49,6 +52,18 @@ export function Hud(props: {
           launch={props.launch}
           exitToMenu={props.exitToMenu}
         />
+        {props.phoneDofsAvailable && (
+          <button
+            type="button"
+            className={`sensor-toggle${props.phoneDofsEnabled ? " on" : ""}`}
+            aria-label="use phone motion sensors"
+            aria-pressed={props.phoneDofsEnabled}
+            title="use phone tilt, spin, and movement"
+            onClick={() => void props.setPhoneDofsEnabled(!props.phoneDofsEnabled)}
+          >
+            sensors
+          </button>
+        )}
       </div>
 
       <div className="hud-bottom">
