@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Bench } from "./components/Bench";
 import { AudioLab } from "./components/AudioLab";
+import { initialVariant, rememberVariant, VariantId } from "./components/variants";
 
-// Tiny hash router: "#/audio" is the Audio Lab, anything else the bench.
 function useRoute(): string {
   const [route, setRoute] = useState(location.hash);
   useEffect(() => {
@@ -15,25 +15,25 @@ function useRoute(): string {
 
 export default function App() {
   const lab = useRoute() === "#/audio";
+  const [ui, setUi] = useState<VariantId>(initialVariant);
 
-  // The emulator is a fixed single view; the lab scrolls like a document.
+  useEffect(() => rememberVariant(ui), [ui]);
+
   return (
-    <div className={`bench ${lab ? "view-lab" : "view-play"}`}>
-      <header className="bench-header">
-        <h1>
-          PIXEL<span className="accent">TILT</span>
-        </h1>
-        <nav className="bench-nav">
-          <a href="#/" className={lab ? "" : "active"}>
-            PLAY
-          </a>
-          <a href="#/audio" className={lab ? "active" : ""}>
-            AUDIO LAB
-          </a>
-        </nav>
-      </header>
-
-      {lab ? <AudioLab /> : <Bench />}
+    <div className={`app ${lab ? "view-lab" : "view-play"} ui-${ui}`}>
+      {lab ? (
+        <>
+          <header className="lab-bar">
+            <a href="#/">back</a>
+            <h1>
+              PIXEL<span>TILT</span>
+            </h1>
+          </header>
+          <AudioLab />
+        </>
+      ) : (
+        <Bench ui={ui} onUi={setUi} />
+      )}
     </div>
   );
 }

@@ -120,6 +120,27 @@ export function panelTables(brightnessPercent: number): PanelTables {
  * mostly black plastic — the lit area is roughly a third of each cell).
  * `inner`/`outer` are fractions of the cell pitch.
  */
+/** Hard square cells with a black gutter — the louvered look under a diffuser. */
+export function makeSquareMask(
+  size: number,
+  cells: number,
+  fill = 0.84,
+): HTMLCanvasElement {
+  const mask = document.createElement("canvas");
+  mask.width = mask.height = size;
+  const ctx = mask.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  const cell = size / cells;
+  const pad = (cell * (1 - fill)) / 2;
+  const inner = cell - pad * 2;
+  for (let y = 0; y < cells; y++) {
+    for (let x = 0; x < cells; x++) {
+      ctx.fillRect(x * cell + pad, y * cell + pad, inner, inner);
+    }
+  }
+  return mask;
+}
+
 export function makeLedMask(
   size: number,
   cells: number,

@@ -96,10 +96,15 @@ compiler install.
 
 | Hardware | Emulator |
 | --- | --- |
-| Tilt (BNO08x gravity) | Arrow keys, or drag the tilt pad |
-| Twist / spin (BNO08x yaw, UART-RVC mode) | `Q` / `E` |
-| Wheel up / click / down | `A` / `S` / `D` (Enter also clicks) |
+| Tilt (BNO08x gravity) | Arrow keys, or drag the 3D panel |
+| Twist / spin (BNO08x yaw, UART-RVC mode) | `Q` / `E`, right-drag, drag near a panel corner, or two-finger rotate |
+| Shake (BNO08x linear acceleration) | `Space`, two-finger shake, or physically shake a phone (real accelerometer) |
+| Wheel up / click / down | mouse wheel up / middle-click / wheel down; also `A` / `S` / `D` (Enter clicks) or the ▲ ● ▼ buttons |
 | Pause menu (in game) | hold `S` (device: hold wheel press ~0.7 s) |
+
+The panel is a 3D object: left-drag the face to tilt it, right-drag to spin,
+left+right drag to slide it (that shove is G-force in the sim), two fingers to spin or shake. The HUD has a game picker, the wheel, and
+music/SFX volume. **music** in the top-right opens the Audio Lab.
 
 The panel view is a simulation of the real matrix, not a scaled-up
 screenshot: individual LED dots with the dark gaps between them, and the
@@ -134,7 +139,7 @@ or per-frame solver budget.
 
 The emulator plays the games' sound effects and background music through Web
 Audio (press any key/click once to satisfy the browser's autoplay gate). The
-**AUDIO LAB** page (top-right nav) has two extras: a browser for the core's
+**music** link (top-right) opens the Audio Lab: a browser for the core's
 programmatic SFX banks, and an **MP3 → PTA converter** — PTA is the project's
 tiny mono ADPCM format (pick sample rate and codec, preview the result, see
 the output size, download the file or assign it as a background-music track).
@@ -284,7 +289,7 @@ shared-runtime **Sand II** family described above.
 core/       engine, gfx, input, math — shared, freestanding C++
 games/      one folder per game + _template/ + generated/ registry
 emulator/   WASM export shim (the browser "hardware")
-frontend/   React + Vite test bench (LED renderer, tilt pad, game registry)
+frontend/   React + Vite test bench (LED renderer, 3D panel, game registry)
 firmware/   ESP32-S3 platform layer (HUB75 DMA, BNO08x, PCA9557 keys)
 tools/      build-wasm, gen-games, new-game, smoke-test (Node, zero deps)
 ```

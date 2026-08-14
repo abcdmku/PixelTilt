@@ -8,7 +8,7 @@ import {
   SCREEN_H,
   SCREEN_W,
 } from "./wasm";
-import { LED_CHROMA, LED_CORE_WHITE, makeLedMask, panelTables } from "./panel";
+import { LED_CHROMA, LED_CORE_WHITE, makeLedMask, makeSquareMask, panelTables } from "./panel";
 import {
   audioUnlocked,
   installAudioUnlock,
@@ -23,6 +23,8 @@ import { setMusicTrack, stopMusic } from "../audio/music";
 //   Q / E       -> twist the panel counter-/clockwise (yaw spin)
 //   Space       -> shake the device (random linear-acceleration burst)
 //   A / S / D   -> thumb wheel up / click / down (Enter also clicks)
+//   Mouse wheel -> same as A / D; middle-click is S (hold for pause)
+//   Right-drag  -> spin; left+right drag -> slide the panel
 const BUTTON_KEYS: Record<string, number> = {
   KeyA: BTN_UP,
   KeyS: BTN_CLICK,
@@ -48,6 +50,29 @@ const DEADLINE_EPSILON_MS = 0.5;
 
 // Settings + high scores persist in localStorage, mirroring the device's NVS.
 const SAVE_KEY = "pixeltilt.save";
+const VOL_KEY = "pixeltilt.vol";
+
+function readHostVolume(): { sfx: number | null; music: number | null } {
+  try {
+    const raw = localStorage.getItem(VOL_KEY);
+    if (!raw) return { sfx: null, music: null };
+    const o = JSON.parse(raw) as { sfx?: unknown; music?: unknown };
+    return {
+      sfx: typeof o.sfx === "number" ? o.sfx : null,
+      music: typeof o.music === "number" ? o.music : null,
+    };
+  } catch {
+    return { sfx: null, music: null };
+  }
+}
+
+function writeHostVolume(sfx: number | null, music: number | null) {
+  try {
+    localStorage.setItem(VOL_KEY, JSON.stringify({ sfx, music }));
+  } catch {
+    // storage unavailable
+  }
+}
 
 function restoreSave(m: Emulator) {
   try {
@@ -68,6 +93,13 @@ function persistSave(m: Emulator) {
   }
 }
 
+export interface EmulatorPose {
+  tilt: { x: number; y: number };
+  /** Twist rate about the screen normal, rad/s (+ = clockwise). */
+  spin: number;
+  shaking: boolean;
+}
+
 export interface EmulatorState {
   ready: boolean;
   error: string | null;
@@ -76,9 +108,16 @@ export interface EmulatorState {
   fps: number;
   paused: boolean;
   tilt: { x: number; y: number };
+  /** Twist rate about the screen normal, rad/s (+ = clockwise). */
+  spin: number;
+  /** True while a shake is being applied — key, button, or a real phone. */
+  shaking: boolean;
   buttons: number;
   /** False until the browser's autoplay gate is lifted by a click/keypress. */
   audioOn: boolean;
+  /** Host-facing volumes, percent 0..100 (core setting, or a HUD override). */
+  sfxVolume: number;
+  musicVolume: number;
   /** ESP32 performance emulation: ticks paced on a simulated 240 MHz timeline. */
   esp32Perf: boolean;
   /** Simulated device frame rate while esp32Perf is on (60 = keeping up). */
@@ -95,8 +134,21 @@ export interface EmulatorControls {
   setVirtualButton(mask: number, down: boolean): void;
   /** Drag pad override; pass null to release back to keyboard control. */
   setPadTilt(t: { x: number; y: number } | null): void;
+  /** On-screen twist: -1 counter-clockwise, 0 off, +1 clockwise. */
+  setVirtualSpin(dir: number): void;
+  /** On-screen shake, held for as long as the button is down. */
+  setVirtualShake(on: boolean): void;
+  /** Linear accel in g (screen convention). Pass null to release. */
+  setPadAccel(a: { x: number; y: number; z: number } | null): void;
+  /** Sample the live pose (call from rAF — not React state). */
+  getPose(): EmulatorPose;
+  /** HUD volume sliders; persist and win over the in-game setting. */
+  setHostSfxVolume(percent: number): void;
+  setHostMusicVolume(percent: number): void;
   /** Toggle ESP32 performance emulation. */
   setEsp32Perf(on: boolean): void;
+  /** `squares` is the frame variant: hard pixels, no LED-dot mask. */
+  setPixelStyle(style: "dots" | "squares"): void;
 }
 
 export function useEmulator(): EmulatorState & EmulatorControls {
@@ -107,17 +159,33 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const [fps, setFps] = useState(0);
   const [paused, setPausedState] = useState(false);
   const [tiltUi, setTiltUi] = useState({ x: 0, y: 0 });
+  const [spinUi, setSpinUi] = useState(0);
+  const [shakingUi, setShakingUi] = useState(false);
   const [buttonsUi, setButtonsUi] = useState(0);
   const [audioOn, setAudioOn] = useState(false);
+  const [sfxVol, setSfxVol] = useState(() => readHostVolume().sfx ?? 80);
+  const [musicVol, setMusicVol] = useState(() => readHostVolume().music ?? 60);
   const [esp32Perf, setEsp32PerfState] = useState(false);
   const [esp32Fps, setEsp32Fps] = useState(60);
 
   const emu = useRef<Emulator | null>(null);
   const keys = useRef<Set<string>>(new Set());
   const virtualButtons = useRef(0);
+  const wheelPendingUp = useRef(0);
+  const wheelPendingDown = useRef(0);
+  const wheelNeedRelease = useRef(false);
+  const wheelClick = useRef(false);
+  const wheelAcc = useRef(0);
+  const virtualSpin = useRef(0);
+  const virtualShake = useRef(false);
   const padTilt = useRef<{ x: number; y: number } | null>(null);
+  const padAccel = useRef<{ x: number; y: number; z: number } | null>(null);
   const tilt = useRef({ x: 0, y: 0 });
   const spin = useRef(0);
+  const poseRef = useRef<EmulatorPose>({ tilt: { x: 0, y: 0 }, spin: 0, shaking: false });
+  const savedVol = readHostVolume();
+  const hostSfx = useRef<number | null>(savedVol.sfx);
+  const hostMusic = useRef<number | null>(savedVol.music);
   // Real device motion (phones): pseudo-force in g, screen axes; stamped so a
   // stalled event stream decays to zero instead of sticking.
   const motion = useRef({ x: 0, y: 0, z: 0, at: 0 });
@@ -134,6 +202,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const renderDirty = useRef(true);
   const audioDirty = useRef(true);
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  const pixelStyle = useRef<"dots" | "squares">("dots");
 
   const registerCanvas = useCallback((main: HTMLCanvasElement | null) => {
     if (canvas.current === main) return;
@@ -187,6 +256,44 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     padTilt.current = t;
   }, []);
 
+  const setVirtualSpin = useCallback((dir: number) => {
+    virtualSpin.current = Math.max(-1, Math.min(1, dir));
+  }, []);
+
+  const setVirtualShake = useCallback((on: boolean) => {
+    virtualShake.current = on;
+  }, []);
+
+  const setPadAccel = useCallback((a: { x: number; y: number; z: number } | null) => {
+    padAccel.current = a;
+  }, []);
+
+  const getPose = useCallback((): EmulatorPose => poseRef.current, []);
+
+  const setHostSfxVolume = useCallback((percent: number) => {
+    const n = Math.max(0, Math.min(100, Math.round(percent)));
+    hostSfx.current = n;
+    writeHostVolume(n, hostMusic.current);
+    lastSfxVolume.current = n;
+    setSfxVolume(n);
+    setSfxVol(n);
+  }, []);
+
+  const setHostMusicVolume = useCallback((percent: number) => {
+    const n = Math.max(0, Math.min(100, Math.round(percent)));
+    hostMusic.current = n;
+    writeHostVolume(hostSfx.current, n);
+    lastMusicVolume.current = n;
+    setMusicVolume(n);
+    setMusicVol(n);
+  }, []);
+
+  const setPixelStyle = useCallback((style: "dots" | "squares") => {
+    if (pixelStyle.current === style) return;
+    pixelStyle.current = style;
+    renderDirty.current = true;
+  }, []);
+
   const setEsp32Perf = useCallback((on: boolean) => {
     esp32Ref.current = on;
     fixedLagMs.current = 0;
@@ -217,6 +324,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     const scratch = document.createElement("canvas");
     let bodyMask: HTMLCanvasElement | null = null;
     let coreMask: HTMLCanvasElement | null = null;
+    let lastMaskStyle: "dots" | "squares" | null = null;
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
       if (ev.repeat) return;
@@ -229,7 +337,57 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     };
     const keyDown = onKey(true);
     const keyUp = onKey(false);
-    const onBlur = () => keys.current.clear();
+    const onBlur = () => {
+      keys.current.clear();
+      wheelPendingUp.current = 0;
+      wheelPendingDown.current = 0;
+      wheelNeedRelease.current = false;
+      wheelClick.current = false;
+      wheelAcc.current = 0;
+    };
+
+    const wheelTargetIsChrome = (t: EventTarget | null) =>
+      t instanceof Element && !!t.closest("input, select, textarea, option");
+
+    const onWheel = (ev: WheelEvent) => {
+      if (ev.ctrlKey || ev.metaKey) return;
+      if (wheelTargetIsChrome(ev.target)) return;
+      ev.preventDefault();
+      if (ev.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        const n = Math.max(1, Math.round(Math.abs(ev.deltaY)));
+        if (ev.deltaY < 0) wheelPendingUp.current += n;
+        else if (ev.deltaY > 0) wheelPendingDown.current += n;
+      } else if (ev.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        if (ev.deltaY < 0) wheelPendingUp.current += 1;
+        else if (ev.deltaY > 0) wheelPendingDown.current += 1;
+      } else if (ev.deltaY !== 0) {
+        // Pixel wheels / trackpads: one menu step per ~100px so a notch
+        // (~120) is one step and a trackpad flick does not skip the list.
+        wheelAcc.current += ev.deltaY;
+        const unit = 100;
+        while (wheelAcc.current >= unit) {
+          wheelPendingDown.current++;
+          wheelAcc.current -= unit;
+        }
+        while (wheelAcc.current <= -unit) {
+          wheelPendingUp.current++;
+          wheelAcc.current += unit;
+        }
+      }
+    };
+
+    const onMouseDown = (ev: MouseEvent) => {
+      if (ev.button !== 1) return;
+      if (wheelTargetIsChrome(ev.target)) return;
+      ev.preventDefault();
+      wheelClick.current = true;
+    };
+    const onMouseUp = (ev: MouseEvent) => {
+      if (ev.button === 1) wheelClick.current = false;
+    };
+    const onAuxClick = (ev: MouseEvent) => {
+      if (ev.button === 1) ev.preventDefault();
+    };
 
     // Phones: devicemotion's `acceleration` is the device's kinematic
     // acceleration a; the pseudo-force a loose object feels is -a. Map device
@@ -249,6 +407,10 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     window.addEventListener("keydown", keyDown);
     window.addEventListener("keyup", keyUp);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("auxclick", onAuxClick);
     window.addEventListener("devicemotion", onMotion);
     installAudioUnlock();
 
@@ -275,33 +437,57 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         tilt.current.x += (tx - tilt.current.x) * Math.min(1, rate(tx) * dt);
         tilt.current.y += (ty - tilt.current.y) * Math.min(1, rate(ty) * dt);
       }
-      const spinTarget =
-        ((k.has("KeyE") ? 1 : 0) - (k.has("KeyQ") ? 1 : 0)) * SPIN_RATE;
-      spin.current += (spinTarget - spin.current) * Math.min(1, 12 * dt);
+      // Twist: keyboard and the on-screen buttons drive the same rate.
+      const spinDir = Math.max(
+        -1,
+        Math.min(1, (k.has("KeyE") ? 1 : 0) - (k.has("KeyQ") ? 1 : 0) + virtualSpin.current),
+      );
+      spin.current += (spinDir * SPIN_RATE - spin.current) * Math.min(1, 12 * dt);
 
       let buttons = virtualButtons.current;
       for (const code of k) buttons |= BUTTON_KEYS[code] ?? 0;
+      if (wheelClick.current) buttons |= BTN_CLICK;
 
-      // Shake: held Space synthesizes a noisy burst; otherwise pass through
-      // real device motion (zeroed once the event stream goes stale).
+      // Shake: held Space / the SHAKE button synthesizes a noisy burst;
+      // otherwise pass through real device motion (zeroed once the event
+      // stream goes stale).
       let ax = 0, ay = 0, az = 0;
-      if (k.has("Space")) {
+      if (k.has("Space") || virtualShake.current) {
         ax = (Math.random() - 0.5) * 2 * SHAKE_G;
         ay = (Math.random() - 0.5) * 2 * SHAKE_G;
         az = (Math.random() - 0.5) * SHAKE_G;
+      } else if (padAccel.current) {
+        ({ x: ax, y: ay, z: az } = padAccel.current);
       } else if (now - motion.current.at < 250) {
         ({ x: ax, y: ay, z: az } = motion.current);
       }
+      const shaking = Math.abs(ax) + Math.abs(ay) + Math.abs(az) > 0.15;
+      poseRef.current = { tilt: { x: tilt.current.x, y: tilt.current.y }, spin: spin.current, shaking };
 
       let tickCount = 0;
       const runTick = (tickDt: number) => {
+        let tickButtons = buttons;
+        // Scroll notches are edges, not holds: one justDown per queued step,
+        // with a release tick in between so the next notch can fire again.
+        if (wheelNeedRelease.current) {
+          wheelNeedRelease.current = false;
+        } else if (wheelPendingUp.current > 0) {
+          tickButtons |= BTN_UP;
+          wheelPendingUp.current--;
+          wheelNeedRelease.current = true;
+        } else if (wheelPendingDown.current > 0) {
+          tickButtons |= BTN_DOWN;
+          wheelPendingDown.current--;
+          wheelNeedRelease.current = true;
+        }
         m.setAccel(ax, ay, az);
         // The physics field is tilt + shake in one vector (raw specific
         // force, like the hardware IMU): full arrow press = vertical
         // (1 g), and Space/devicemotion noise rides on top.
         m.setGravity(tilt.current.x + ax, tilt.current.y + ay);
-        m.tick(tickDt, tilt.current.x, tilt.current.y, spin.current, buttons);
+        m.tick(tickDt, tilt.current.x, tilt.current.y, spin.current, tickButtons);
         tickCount++;
+        buttons = tickButtons;
       };
 
       if (pausedRef.current) {
@@ -343,12 +529,12 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         sfxSerial.current = drained.head;
         for (const p of drained.patches) playPatch(p);
 
-        const sfxVolume = m.sfxVolume();
+        const sfxVolume = hostSfx.current ?? m.sfxVolume();
         if (sfxVolume !== lastSfxVolume.current) {
           lastSfxVolume.current = sfxVolume;
           setSfxVolume(sfxVolume);
         }
-        const musicVolume = m.musicVolume();
+        const musicVolume = hostMusic.current ?? m.musicVolume();
         if (musicVolume !== lastMusicVolume.current) {
           lastMusicVolume.current = musicVolume;
           setMusicVolume(musicVolume);
@@ -369,6 +555,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       // crush to black here exactly like they do on the hardware.
       const fb = m.framebuffer();
       const { emit, hot } = panelTables(m.brightness());
+      const square = pixelStyle.current === "squares";
       const bp = bodyImage.data;
       const cp = coreImage.data;
       for (let i = 0, j = 0; i < fb.length; i += 3, j += 4) {
@@ -406,28 +593,36 @@ export function useEmulator(): EmulatorState & EmulatorControls {
 
         const size = main.width;
         const ctx = main.getContext("2d")!;
-        if (!bodyMask || bodyMask.width !== size) {
-          bodyMask = makeLedMask(size, SCREEN_W, 0.22, 0.44);
-          coreMask = makeLedMask(size, SCREEN_W, 0.06, 0.26);
+        if (!bodyMask || bodyMask.width !== size || lastMaskStyle !== pixelStyle.current) {
+          lastMaskStyle = pixelStyle.current;
+          if (square) {
+            bodyMask = makeSquareMask(size, SCREEN_W, 0.82);
+            coreMask = null;
+          } else {
+            bodyMask = makeLedMask(size, SCREEN_W, 0.22, 0.44);
+            coreMask = makeLedMask(size, SCREEN_W, 0.06, 0.26);
+          }
           scratch.width = scratch.height = size;
         }
-        const sctx = scratch.getContext("2d")!;
         ctx.clearRect(0, 0, size, size);
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(body.canvas, 0, 0, size, size);
         ctx.globalCompositeOperation = "destination-in";
         ctx.drawImage(bodyMask, 0, 0);
         ctx.globalCompositeOperation = "source-over";
-        // Die on top, added rather than painted so it reads as light.
-        sctx.globalCompositeOperation = "source-over";
-        sctx.clearRect(0, 0, size, size);
-        sctx.imageSmoothingEnabled = false;
-        sctx.drawImage(core.canvas, 0, 0, size, size);
-        sctx.globalCompositeOperation = "destination-in";
-        sctx.drawImage(coreMask!, 0, 0);
-        ctx.globalCompositeOperation = "lighter";
-        ctx.drawImage(scratch, 0, 0);
-        ctx.globalCompositeOperation = "source-over";
+        if (!square) {
+          // Die on top, added rather than painted so it reads as light.
+          const sctx = scratch.getContext("2d")!;
+          sctx.globalCompositeOperation = "source-over";
+          sctx.clearRect(0, 0, size, size);
+          sctx.imageSmoothingEnabled = false;
+          sctx.drawImage(core.canvas, 0, 0, size, size);
+          sctx.globalCompositeOperation = "destination-in";
+          sctx.drawImage(coreMask!, 0, 0);
+          ctx.globalCompositeOperation = "lighter";
+          ctx.drawImage(scratch, 0, 0);
+          ctx.globalCompositeOperation = "source-over";
+        }
         renderDirty.current = false;
       }
       // Cheap UI sync ~10 Hz so React isn't re-rendering at 60 fps.
@@ -439,8 +634,14 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         persistSave(m);
         setCurrentGame(m.currentGame());
         setTiltUi({ x: tilt.current.x, y: tilt.current.y });
+        setSpinUi(spin.current);
+        setShakingUi(shaking);
         setButtonsUi(buttons);
         setAudioOn(audioUnlocked());
+        const sv = hostSfx.current ?? m.sfxVolume();
+        const mv = hostMusic.current ?? m.musicVolume();
+        setSfxVol((cur) => (cur === sv ? cur : sv));
+        setMusicVol((cur) => (cur === mv ? cur : mv));
         if (fpsAccum > 0) {
           const measuredFps = Math.round(fpsFrames / fpsAccum);
           setFps(measuredFps);
@@ -475,6 +676,10 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("auxclick", onAuxClick);
       window.removeEventListener("devicemotion", onMotion);
     };
   }, []);
@@ -487,8 +692,12 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     fps,
     paused,
     tilt: tiltUi,
+    spin: spinUi,
+    shaking: shakingUi,
     buttons: buttonsUi,
     audioOn,
+    sfxVolume: sfxVol,
+    musicVolume: musicVol,
     esp32Perf,
     esp32Fps,
     registerCanvas,
@@ -498,6 +707,13 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     setPaused,
     setVirtualButton,
     setPadTilt,
+    setVirtualSpin,
+    setVirtualShake,
+    setPadAccel,
+    getPose,
+    setHostSfxVolume,
+    setHostMusicVolume,
     setEsp32Perf,
+    setPixelStyle,
   };
 }

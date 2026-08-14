@@ -19,13 +19,17 @@ export function WheelButtons(props: {
           key={b.name}
           className={`wheel-btn ${props.buttons & b.mask ? "active" : ""}`}
           onPointerDown={(ev) => {
-            (ev.target as HTMLElement).setPointerCapture(ev.pointerId);
             props.setVirtualButton(b.mask, true);
+            try {
+              (ev.target as HTMLElement).setPointerCapture(ev.pointerId);
+            } catch {
+              // capture is a nicety; the press already registered
+            }
           }}
           onPointerUp={() => props.setVirtualButton(b.mask, false)}
           onPointerCancel={() => props.setVirtualButton(b.mask, false)}
           aria-label={`wheel ${b.name}`}
-          title={`Wheel ${b.name} (${b.key})`}
+          title={`Wheel ${b.name} (${b.key}${b.name === "click" ? ", middle-click" : ", scroll"})`}
         >
           {b.glyph}
         </button>

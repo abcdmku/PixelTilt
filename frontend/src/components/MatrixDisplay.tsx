@@ -22,8 +22,16 @@ export function MatrixDisplay(props: {
       <span className="bezel-hole bl" />
       <span className="bezel-hole br" />
       <div className="panel-face">
-        <canvas ref={mainRef} className="matrix-main" width={640} height={640} />
+        <canvas
+          ref={mainRef}
+          className="matrix-main"
+          width={640}
+          height={640}
+          draggable={false}
+        />
+        <span className="panel-grid" />
       </div>
+      <span className="panel-plexi" />
     </div>
   );
 }

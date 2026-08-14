@@ -8,7 +8,6 @@ export function GamePicker(props: {
 }) {
   return (
     <label className="picker">
-      <span className="picker-label">GAME</span>
       <select
         className="picker-select"
         value={props.currentGame}
