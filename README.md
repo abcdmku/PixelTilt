@@ -115,9 +115,15 @@ SFX and music volume, and a high-score reset. Settings and scores survive
 power cycles. The device keeps them in NVS flash and the emulator in
 localStorage.
 
-Twenty-one games ship in the repo. **Tilt Maze** rolls a ball to a goal past
+Twenty-two games ship in the repo. **Tilt Maze** rolls a ball to a goal past
 holes, **Snake** steers on the dominant tilt axis, **Breakout** maps tilt
 straight to paddle position, and the Sand II family below shares one runtime.
+**WIZ3** is the complete 19-level port of the original Java runtime: its level
+records, tile/sprite sheets, and original sound clips live in `games/wiz3/`
+and `assets/sounds/wiz3/`. Tilt moves, CLICK jumps, UP operates doors and
+levers, and DOWN activates the earned invisibility spell. Regenerate assets
+with `python tools/extract-wiz3-assets.py --jar wiz3-original.jar` from the
+creator-hosted JAR (not the reduced HTML remake).
 
 ### Sand II family
 

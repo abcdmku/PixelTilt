@@ -24,6 +24,7 @@ extern const pt::Game pt_game_snake;
 extern const pt::Game pt_game_stacker;
 extern const pt::Game pt_game_tilt_maze;
 extern const pt::Game pt_game_tunnel;
+extern const pt::Game pt_game_wiz3;
 
 namespace pt {
 const Game* const GAME_LIST[] = {
@@ -48,9 +49,10 @@ const Game* const GAME_LIST[] = {
     &pt_game_stacker,
     &pt_game_tilt_maze,
     &pt_game_tunnel,
+    &pt_game_wiz3,
 };
-const int GAME_COUNT = 21;
-const int SCORED_GAME_COUNT = 14;
-static_assert(14 <= SCORE_GAME_CAPACITY,
+const int GAME_COUNT = 22;
+const int SCORED_GAME_COUNT = 15;
+static_assert(15 <= SCORE_GAME_CAPACITY,
               "scored game registry exceeds persistent score capacity");
 }  // namespace pt

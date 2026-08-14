@@ -9,3 +9,4 @@ frontend/public/pixeltilt.wasm
 .DS_Store
 Thumbs.db
 firmware/src/generated_music.h
+.shots/

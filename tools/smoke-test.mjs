@@ -236,6 +236,17 @@ for (let g = 0; g < count; g++) {
 e.pt_accel(0, 0, 0);
 e.pt_gravity(0, 0);
 check("games produced sfx events", e.pt_sfx_head() > 0 && e.pt_sfx_ring_cap() === 16);
+check("WIZ3 is registered as a scored game", ids.includes("wiz3") && gameHasScores[ids.indexOf("wiz3")]);
+const wiz3Source = readFileSync(join(root, "games", "wiz3", "game.cpp"), "utf8");
+check(
+  "WIZ3 keeps separate side and one-way landing masks",
+  wiz3Source.includes("blockAt(tx, ty, 1)") && wiz3Source.includes("blockAt(tx, ty, 3)"),
+);
+check(
+  "WIZ3 embeds original sample banks as PTA",
+  wiz3Source.includes("sfxSample(wiz3_assets::SAMPLE_JUMP, sizeof(wiz3_assets::SAMPLE_JUMP))") &&
+    readFileSync(join(root, "games", "wiz3", "assets.h"), "utf8").includes("static const uint8_t SAMPLE_JUMP[]"),
+);
 
 // Holding CLICK ~0.7s pauses; the pause menu's third item is MAIN MENU.
 e.pt_launch(0);
