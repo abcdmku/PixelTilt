@@ -1,237 +1,215 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 880" font-family="Segoe UI, Arial, sans-serif">
-  <defs>
-    <marker id="w-dot" markerWidth="6" markerHeight="6" refX="3" refY="3">
-      <circle cx="3" cy="3" r="2.4" fill="#94a3b8"/>
-    </marker>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 660" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .bg   { fill: #f8fafc; }
+    .t1   { fill: #0f172a; }
+    .t2   { fill: #475569; }
+    .lead { stroke: #94a3b8; }
+    .halo { stroke: #f1f5f9; }
+    .pedge{ stroke: #3a4149; }
+    .wVcc { stroke: #64748b; }
+    .wPs1 { stroke: #0f172a; }
+    .w5vk { stroke: #111827; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .t1   { fill: #e6edf3; }
+      .t2   { fill: #9aa4b2; }
+      .lead { stroke: #6b7684; }
+      .halo { stroke: #8b949e; }
+      .pedge{ stroke: #4c545d; }
+      .wVcc { stroke: #e6edf3; }
+      .wPs1 { stroke: #6b7684; }
+      .w5vk { stroke: #7d8590; }
+    }
+  </style>
 
-  <rect width="1300" height="880" fill="#f8fafc"/>
+  <rect class="bg" width="900" height="660"/>
 
-  <text x="40" y="46" font-size="25" font-weight="700" fill="#0f172a">Wiring overview, looking at the back of the panel</text>
-  <text x="40" y="72" font-size="13.5" fill="#64748b">The controller sits top right on the panel's IN socket. The IMU is taped mid-panel. Five wires join them.</text>
-
-  <g transform="scale(1.12)">
-
-    <!-- ================= 64x64 panel, rear ================= -->
-    <rect x="56" y="150" width="560" height="560" rx="8" fill="#16191d" stroke="#3a4149" stroke-width="1.5"/>
-    <rect x="72" y="166" width="528" height="240" fill="#23282f"/>
-    <rect x="72" y="454" width="528" height="240" fill="#23282f"/>
-    <!-- center rib the IMU is stuck to -->
-    <rect x="72" y="406" width="528" height="48" fill="#191d21"/>
-    <g fill="#0d1013" stroke="#4b5563" stroke-width="1">
-      <circle cx="86" cy="180" r="7"/><circle cx="586" cy="180" r="7"/>
-      <circle cx="86" cy="430" r="7"/><circle cx="586" cy="430" r="7"/>
-      <circle cx="86" cy="680" r="7"/><circle cx="586" cy="680" r="7"/>
-    </g>
-    <!-- driver ICs, texture only -->
-    <g fill="#2e343c">
-      <rect x="120" y="196" width="26" height="9"/><rect x="220" y="196" width="26" height="9"/><rect x="320" y="196" width="26" height="9"/>
-      <rect x="120" y="262" width="26" height="9"/><rect x="220" y="262" width="26" height="9"/><rect x="320" y="262" width="26" height="9"/>
-      <rect x="120" y="486" width="26" height="9"/><rect x="220" y="486" width="26" height="9"/><rect x="320" y="486" width="26" height="9"/><rect x="420" y="486" width="26" height="9"/><rect x="520" y="486" width="26" height="9"/>
-      <rect x="120" y="574" width="26" height="9"/><rect x="220" y="574" width="26" height="9"/><rect x="320" y="574" width="26" height="9"/><rect x="420" y="574" width="26" height="9"/><rect x="520" y="574" width="26" height="9"/>
-      <rect x="120" y="648" width="26" height="9"/><rect x="220" y="648" width="26" height="9"/><rect x="320" y="648" width="26" height="9"/><rect x="420" y="648" width="26" height="9"/><rect x="520" y="648" width="26" height="9"/>
-    </g>
-    <!-- silkscreen arrows: data enters at IN and leaves at OUT -->
-    <g fill="none" stroke="#3d444d" stroke-width="2">
-      <path d="M392,540 L348,540 M360,530 L348,540 L360,550"/>
-      <path d="M392,622 L348,622 M360,612 L348,622 L360,632"/>
-    </g>
-
-    <!-- panel OUT socket -->
-    <rect x="168" y="328" width="76" height="32" rx="2" fill="#0b0e11" stroke="#52606d"/>
-    <g fill="#d4af37">
-      <circle cx="178" cy="338" r="1.9"/><circle cx="188" cy="338" r="1.9"/><circle cx="198" cy="338" r="1.9"/><circle cx="208" cy="338" r="1.9"/>
-      <circle cx="218" cy="338" r="1.9"/><circle cx="228" cy="338" r="1.9"/><circle cx="238" cy="338" r="1.9"/>
-      <circle cx="178" cy="350" r="1.9"/><circle cx="188" cy="350" r="1.9"/><circle cx="198" cy="350" r="1.9"/><circle cx="208" cy="350" r="1.9"/>
-      <circle cx="218" cy="350" r="1.9"/><circle cx="228" cy="350" r="1.9"/><circle cx="238" cy="350" r="1.9"/>
-    </g>
-    <text x="206" y="320" font-size="9.5" fill="#94a3b8" text-anchor="middle">OUT, stays empty</text>
-
-    <!-- panel power socket -->
-    <rect x="256" y="336" width="46" height="26" rx="2" fill="#e5e7eb" stroke="#9ca3af"/>
-    <g fill="#9ca3af">
-      <rect x="262" y="342" width="6" height="14"/><rect x="272" y="342" width="6" height="14"/>
-      <rect x="282" y="342" width="6" height="14"/><rect x="292" y="342" width="6" height="14"/>
-    </g>
-    <text x="244" y="376" font-size="9.5" fill="#94a3b8" text-anchor="end">panel 5 V in</text>
-
-    <text x="336" y="682" font-size="11" fill="#6b7280" text-anchor="middle">64 &#215; 64 HUB75 panel, rear</text>
-
-    <!-- ================= Seengreat HUB75 S3 controller ================= -->
-    <rect x="445" y="352" width="80" height="46" fill="none" stroke="#94d3a2" stroke-width="1.4" stroke-dasharray="5 4"/>
-    <text x="485" y="412" font-size="9.5" fill="#94d3a2" text-anchor="middle">IN, under the board</text>
-
-    <rect x="437" y="172" width="190" height="214" rx="5" fill="#14161c" stroke="#6b7280" stroke-width="1.5"/>
-
-    <!-- 10-pin header along the top edge, in two 5-pin housings -->
-    <rect x="442" y="186" width="82" height="16" rx="1.5" fill="#0b0d10"/>
-    <rect x="532" y="186" width="70" height="16" rx="1.5" fill="#0b0d10"/>
-    <g fill="#d4af37">
-      <circle cx="452" cy="194" r="2.2"/><circle cx="466" cy="194" r="2.2"/><circle cx="480" cy="194" r="2.2"/><circle cx="494" cy="194" r="2.2"/><circle cx="508" cy="194" r="2.2"/>
-      <circle cx="542" cy="194" r="2.2"/><circle cx="556" cy="194" r="2.2"/><circle cx="570" cy="194" r="2.2"/><circle cx="584" cy="194" r="2.2"/><circle cx="596" cy="194" r="2.2"/>
-    </g>
-
-    <!-- VH-4P 5 V out terminal, left edge -->
-    <rect x="437" y="220" width="32" height="44" rx="2" fill="#e5e7eb" stroke="#9ca3af"/>
-    <g fill="#9ca3af">
-      <rect x="444" y="226" width="18" height="5"/><rect x="444" y="236" width="18" height="5"/>
-      <rect x="444" y="246" width="18" height="5"/><rect x="444" y="256" width="18" height="5"/>
-    </g>
-    <text x="453" y="278" font-size="7.5" fill="#cbd5e1" text-anchor="middle">5V OUT</text>
-
-    <!-- speaker -->
-    <rect x="486" y="224" width="72" height="66" rx="14" fill="#0b0d10" stroke="#2d333c" stroke-width="2"/>
-    <circle cx="522" cy="257" r="21" fill="#14171c" stroke="#2d333c"/>
-    <circle cx="522" cy="257" r="8" fill="#1f242b"/>
-    <text x="522" y="302" font-size="7" fill="#6b7280" text-anchor="middle">speaker</text>
-
-    <!-- HUB75 box header, the ribbon alternative to the rear pins -->
-    <rect x="437" y="298" width="26" height="58" rx="2" fill="#0b0d10" stroke="#3f4854"/>
-    <text transform="rotate(-90 450 327)" x="450" y="330" font-size="7" fill="#6b7280" text-anchor="middle">HUB75</text>
-
-    <!-- ESP32-S3 module -->
-    <rect x="529" y="312" width="62" height="52" rx="2" fill="#aab3bd" stroke="#7b8794"/>
-    <rect x="529" y="312" width="62" height="11" fill="#c9d1d9"/>
-    <text x="560" y="344" font-size="7.5" font-weight="600" fill="#1f2937" text-anchor="middle">ESP32-S3</text>
-
-    <!-- microSD -->
-    <rect x="470" y="322" width="52" height="56" rx="2" fill="#cbd5e1" stroke="#64748b"/>
-    <rect x="476" y="366" width="40" height="12" fill="#b8c2cc"/>
-    <text x="496" y="344" font-size="7" fill="#475569" text-anchor="middle">microSD</text>
-
-    <!-- RTC battery holder -->
-    <rect x="437" y="364" width="24" height="16" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
-    <text x="449" y="375" font-size="6.5" fill="#57534e" text-anchor="middle">RTC</text>
-
-    <!-- USB-C ports, BOOT and EN, right edge -->
-    <rect x="611" y="230" width="34" height="18" rx="6" fill="#cbd5e1" stroke="#64748b"/>
-    <rect x="611" y="266" width="34" height="18" rx="6" fill="#cbd5e1" stroke="#64748b"/>
-    <rect x="594" y="252" width="12" height="11" rx="2" fill="#d1d5db"/>
-    <rect x="594" y="288" width="12" height="11" rx="2" fill="#d1d5db"/>
-    <text x="590" y="245" font-size="7" fill="#94a3b8" text-anchor="end">power in</text>
-    <text x="590" y="281" font-size="7" fill="#94a3b8" text-anchor="end">flash</text>
-    <!-- cable in the flash port -->
-    <rect x="645" y="268" width="24" height="14" rx="3" fill="#475569"/>
-
-    <!-- 4-pin 1 mm I2C header -->
-    <rect x="612" y="306" width="15" height="24" rx="2" fill="#f3f4f6" stroke="#9ca3af"/>
-    <text x="606" y="322" font-size="7" fill="#94a3b8" text-anchor="end">I2C</text>
-
-    <!-- thumb wheel, overhangs the right edge -->
-    <circle cx="618" cy="352" r="20" fill="#caa64b" stroke="#8a6d1f" stroke-width="1.6"/>
-    <g stroke="#8a6d1f" stroke-width="1">
-      <line x1="601" y1="344" x2="635" y2="344"/><line x1="599" y1="352" x2="637" y2="352"/><line x1="601" y1="360" x2="635" y2="360"/>
-    </g>
-    <circle cx="600" cy="376" r="3.5" fill="#ef4444"/>
-
-    <!-- ================= GY-BNO08X, taped to the center rib ================= -->
-    <rect x="266" y="400" width="140" height="76" rx="2" fill="#0f1215" opacity="0.5"/>
-    <rect x="272" y="392" width="128" height="76" rx="4" fill="#6d28d9" stroke="#4c1d95" stroke-width="1.5"/>
-    <rect x="318" y="428" width="26" height="26" rx="2" fill="#111827"/>
-    <g fill="#d4af37">
-      <circle cx="282" cy="402" r="2.1"/><circle cx="294" cy="402" r="2.1"/><circle cx="306" cy="402" r="2.1"/><circle cx="318" cy="402" r="2.1"/><circle cx="330" cy="402" r="2.1"/>
-      <circle cx="342" cy="402" r="2.1"/><circle cx="354" cy="402" r="2.1"/><circle cx="366" cy="402" r="2.1"/><circle cx="378" cy="402" r="2.1"/><circle cx="390" cy="402" r="2.1"/>
-    </g>
-    <g font-size="6" fill="#ddd6fe">
-      <text transform="rotate(-90 282 412)" x="282" y="414" text-anchor="end">PS0</text>
-      <text transform="rotate(-90 294 412)" x="294" y="414" text-anchor="end">PS1</text>
-      <text transform="rotate(-90 306 412)" x="306" y="414" text-anchor="end">RST</text>
-      <text transform="rotate(-90 318 412)" x="318" y="414" text-anchor="end">INT</text>
-      <text transform="rotate(-90 330 412)" x="330" y="414" text-anchor="end">CS</text>
-      <text transform="rotate(-90 342 412)" x="342" y="414" text-anchor="end">AD0</text>
-      <text transform="rotate(-90 354 412)" x="354" y="414" text-anchor="end">SDA</text>
-      <text transform="rotate(-90 366 412)" x="366" y="414" text-anchor="end">SCL</text>
-      <text transform="rotate(-90 378 412)" x="378" y="414" text-anchor="end">GND</text>
-      <text transform="rotate(-90 390 412)" x="390" y="414" text-anchor="end">VCC</text>
-    </g>
-    <text x="336" y="464" font-size="8.5" font-weight="600" fill="#ddd6fe" text-anchor="middle">GY-BNO08X</text>
-
-    <!-- ================= the five signal wires ================= -->
-    <!-- light backing so the dark wires read against the panel -->
-    <g fill="none" stroke="#f1f5f9" stroke-width="4.8" stroke-linecap="round">
-      <path d="M356,372 C356,244 400,180 446,180"/>
-      <path d="M372,372 C372,236 406,188 446,188"/>
-      <path d="M388,372 C388,228 412,196 446,196"/>
-      <path d="M284,372 C284,144 400,104 538,172"/>
-      <path d="M296,372 C296,168 420,128 538,186"/>
-    </g>
-    <g fill="none" stroke-width="2.6" stroke-linecap="round">
-      <path d="M356,372 C356,244 400,180 446,180" stroke="#16a34a"/>
-      <path d="M372,372 C372,236 406,188 446,188" stroke="#7c3aed"/>
-      <path d="M388,372 C388,228 412,196 446,196" stroke="#64748b"/>
-      <path d="M284,372 C284,144 400,104 538,172" stroke="#dc2626"/>
-      <path d="M296,372 C296,168 420,128 538,186" stroke="#1f2937"/>
-    </g>
-
-    <!-- ================= panel 5 V harness ================= -->
-    <g fill="none" stroke="#f1f5f9" stroke-width="8" stroke-linecap="round">
-      <path d="M437,232 C398,232 338,268 318,300 C306,318 304,330 302,344"/>
-      <path d="M437,250 C402,250 350,284 330,312 C318,328 312,342 302,354"/>
-    </g>
-    <g fill="none" stroke-width="4.5" stroke-linecap="round">
-      <path d="M437,232 C398,232 338,268 318,300 C306,318 304,330 302,344" stroke="#dc2626"/>
-      <path d="M437,250 C402,250 350,284 330,312 C318,328 312,342 302,354" stroke="#1f2937"/>
-    </g>
-
-    <!-- JST housings sit over the wire ends -->
-    <rect x="276" y="372" width="26" height="22" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
-    <rect x="348" y="372" width="48" height="22" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
-    <rect x="446" y="172" width="62" height="30" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
-    <rect x="538" y="164" width="32" height="38" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
-    <g stroke="#d6d3d1">
-      <line x1="459" y1="176" x2="459" y2="198"/><line x1="472" y1="176" x2="472" y2="198"/><line x1="485" y1="176" x2="485" y2="198"/>
-      <line x1="551" y1="168" x2="551" y2="198"/>
-    </g>
+  <!-- ================= 64x64 panel, rear ================= -->
+  <rect class="pedge" x="40" y="70" width="560" height="560" rx="8" fill="#16191d" stroke-width="1.5"/>
+  <rect x="56" y="86" width="528" height="240" fill="#23282f"/>
+  <rect x="56" y="374" width="528" height="240" fill="#23282f"/>
+  <!-- center rib the IMU is taped to -->
+  <rect x="56" y="326" width="528" height="48" fill="#191d21"/>
+  <g fill="#0d1013" stroke="#4b5563" stroke-width="1">
+    <circle cx="70" cy="100" r="7"/><circle cx="570" cy="100" r="7"/>
+    <circle cx="70" cy="350" r="7"/><circle cx="570" cy="350" r="7"/>
+    <circle cx="70" cy="600" r="7"/><circle cx="570" cy="600" r="7"/>
+  </g>
+  <g fill="#2e343c">
+    <rect x="104" y="116" width="26" height="9"/><rect x="204" y="116" width="26" height="9"/><rect x="304" y="116" width="26" height="9"/>
+    <rect x="104" y="182" width="26" height="9"/><rect x="204" y="182" width="26" height="9"/><rect x="304" y="182" width="26" height="9"/>
+    <rect x="104" y="406" width="26" height="9"/><rect x="204" y="406" width="26" height="9"/><rect x="304" y="406" width="26" height="9"/><rect x="404" y="406" width="26" height="9"/><rect x="504" y="406" width="26" height="9"/>
+    <rect x="104" y="494" width="26" height="9"/><rect x="204" y="494" width="26" height="9"/><rect x="304" y="494" width="26" height="9"/><rect x="404" y="494" width="26" height="9"/><rect x="504" y="494" width="26" height="9"/>
+    <rect x="104" y="568" width="26" height="9"/><rect x="204" y="568" width="26" height="9"/><rect x="304" y="568" width="26" height="9"/><rect x="404" y="568" width="26" height="9"/><rect x="504" y="568" width="26" height="9"/>
+  </g>
+  <!-- silkscreen arrows: data enters at IN and leaves at OUT -->
+  <g fill="none" stroke="#3d444d" stroke-width="2">
+    <path d="M376,460 L332,460 M344,450 L332,460 L344,470"/>
+    <path d="M376,542 L332,542 M344,532 L332,542 L344,552"/>
   </g>
 
-  <!-- ================= callouts ================= -->
-  <g font-size="12.5" fill="#475569">
-    <g>
-      <text x="748" y="200" font-size="14.5" font-weight="700" fill="#0f172a">Seengreat HUB75 S3</text>
-      <text x="748" y="222">Its rear pin header drops onto the panel's IN socket, so the</text>
-      <text x="748" y="240">board hangs off the top right corner. Push it fully home. A</text>
-      <text x="748" y="258">half-seated header is the usual reason a panel stays dark.</text>
-      <line x1="742" y1="212" x2="704" y2="237" stroke="#94a3b8" stroke-dasharray="3 3" marker-end="url(#w-dot)"/>
-    </g>
-    <g>
-      <text x="748" y="306" font-size="14.5" font-weight="700" fill="#0f172a">USB-C and the wheel clear the panel edge</text>
-      <text x="748" y="328">The lower port flashes and powers the whole build. The upper</text>
-      <text x="748" y="346">one feeds the matrix alone if your supply is weak. Below them,</text>
-      <text x="748" y="364">the knurled wheel rolls up, rolls down and presses in.</text>
-      <line x1="742" y1="318" x2="736" y2="293" stroke="#94a3b8" stroke-dasharray="3 3" marker-end="url(#w-dot)"/>
-      <line x1="742" y1="352" x2="727" y2="394" stroke="#94a3b8" stroke-dasharray="3 3" marker-end="url(#w-dot)"/>
-    </g>
-    <g>
-      <text x="748" y="412" font-size="14.5" font-weight="700" fill="#0f172a">GY-BNO08X</text>
-      <text x="748" y="434">Foam-taped flat against the center rib, square to the panel</text>
-      <text x="748" y="452">edges, header facing the board. Tilt is measured relative to</text>
-      <text x="748" y="470">however it ends up sitting, so get it straight now.</text>
-      <line x1="742" y1="424" x2="465" y2="479" stroke="#94a3b8" stroke-dasharray="3 3" marker-end="url(#w-dot)"/>
-    </g>
-    <g>
-      <text x="748" y="518" font-size="14.5" font-weight="700" fill="#0f172a">The five wires</text>
-      <line x1="750" y1="540" x2="782" y2="540" stroke="#64748b" stroke-width="4" stroke-linecap="round"/><text x="792" y="544">VCC to 3V3</text>
-      <line x1="944" y1="540" x2="976" y2="540" stroke="#7c3aed" stroke-width="4" stroke-linecap="round"/><text x="986" y="544">GND to GND</text>
-      <line x1="750" y1="566" x2="782" y2="566" stroke="#16a34a" stroke-width="4" stroke-linecap="round"/><text x="792" y="570">SDA, which acts as TX, to RX0</text>
-      <line x1="750" y1="592" x2="782" y2="592" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/><text x="792" y="596">PS1 to GND</text>
-      <line x1="944" y1="592" x2="976" y2="592" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/><text x="986" y="596">PS0 to 3V3</text>
-      <text x="748" y="624" font-size="11.5" fill="#94a3b8">Colors match the reference build. Wire by the silkscreen names, never by position or color.</text>
-      <text x="748" y="642" font-size="11.5" fill="#94a3b8">SCL, AD0, CS, INT and RST stay empty. The pinout drawing shows which header pin is which.</text>
-    </g>
-    <g>
-      <text x="748" y="690" font-size="14.5" font-weight="700" fill="#0f172a">Panel 5 V</text>
-      <text x="748" y="712">The board's VH-4P screw terminal feeds the panel's power</text>
-      <text x="748" y="730">socket at 5 V, 4 A or less. Wire this before you seat the board.</text>
-      <text x="748" y="748">The terminal is awkward to reach afterwards.</text>
-      <line x1="742" y1="702" x2="352" y2="386" stroke="#94a3b8" stroke-dasharray="3 3" marker-end="url(#w-dot)"/>
-    </g>
-    <g>
-      <text x="748" y="796" font-size="14.5" font-weight="700" fill="#0f172a">Tilt going the wrong way?</text>
-      <text x="748" y="818">Settings &#8594; TILT quarter-turns the mapping and Settings &#8594; FLIP</text>
-      <text x="748" y="836">mirrors it. Every mounting is reachable without a reflash.</text>
-    </g>
+  <!-- panel OUT socket -->
+  <rect x="114" y="248" width="76" height="32" rx="2" fill="#0b0e11" stroke="#52606d"/>
+  <g fill="#d4af37">
+    <circle cx="124" cy="258" r="1.9"/><circle cx="134" cy="258" r="1.9"/><circle cx="144" cy="258" r="1.9"/><circle cx="154" cy="258" r="1.9"/>
+    <circle cx="164" cy="258" r="1.9"/><circle cx="174" cy="258" r="1.9"/><circle cx="184" cy="258" r="1.9"/>
+    <circle cx="124" cy="270" r="1.9"/><circle cx="134" cy="270" r="1.9"/><circle cx="144" cy="270" r="1.9"/><circle cx="154" cy="270" r="1.9"/>
+    <circle cx="164" cy="270" r="1.9"/><circle cx="174" cy="270" r="1.9"/><circle cx="184" cy="270" r="1.9"/>
+  </g>
+  <text x="152" y="240" font-size="10" fill="#94a3b8" text-anchor="middle">OUT, stays empty</text>
+
+  <!-- panel power socket -->
+  <rect x="206" y="254" width="46" height="26" rx="2" fill="#e5e7eb" stroke="#9ca3af"/>
+  <g fill="#9ca3af">
+    <rect x="212" y="260" width="6" height="14"/><rect x="222" y="260" width="6" height="14"/>
+    <rect x="232" y="260" width="6" height="14"/><rect x="242" y="260" width="6" height="14"/>
+  </g>
+  <text x="229" y="296" font-size="10" fill="#94a3b8" text-anchor="middle">panel 5 V in</text>
+
+  <!-- ================= HUB75 S3 controller ================= -->
+  <rect x="429" y="272" width="80" height="46" fill="none" stroke="#94d3a2" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="469" y="332" font-size="10" fill="#94d3a2" text-anchor="middle">IN, under the board</text>
+
+  <rect x="421" y="92" width="190" height="214" rx="5" fill="#14161c" stroke="#6b7280" stroke-width="1.5"/>
+
+  <!-- 10-pin header along the top edge, two 5-pin housings -->
+  <rect x="426" y="106" width="82" height="16" rx="1.5" fill="#0b0d10"/>
+  <rect x="516" y="106" width="70" height="16" rx="1.5" fill="#0b0d10"/>
+  <g fill="#d4af37">
+    <circle cx="436" cy="114" r="2.2"/><circle cx="450" cy="114" r="2.2"/><circle cx="464" cy="114" r="2.2"/><circle cx="478" cy="114" r="2.2"/><circle cx="492" cy="114" r="2.2"/>
+    <circle cx="526" cy="114" r="2.2"/><circle cx="540" cy="114" r="2.2"/><circle cx="554" cy="114" r="2.2"/><circle cx="568" cy="114" r="2.2"/><circle cx="580" cy="114" r="2.2"/>
   </g>
 
-  <text x="63" y="836" font-size="12.5" fill="#475569">The IMU harness runs up over the panel to the board's 10-pin header.</text>
-  <text x="63" y="856" font-size="12.5" fill="#475569">The 5 V pair crosses over it on its way to the panel socket.</text>
+  <!-- VH-4P 5 V out terminal -->
+  <rect x="421" y="140" width="32" height="44" rx="2" fill="#e5e7eb" stroke="#9ca3af"/>
+  <g fill="#9ca3af">
+    <rect x="428" y="146" width="18" height="5"/><rect x="428" y="156" width="18" height="5"/>
+    <rect x="428" y="166" width="18" height="5"/><rect x="428" y="176" width="18" height="5"/>
+  </g>
+  <text x="437" y="198" font-size="8" fill="#cbd5e1" text-anchor="middle">5V OUT</text>
+
+  <!-- speaker -->
+  <rect x="470" y="144" width="72" height="66" rx="14" fill="#0b0d10" stroke="#2d333c" stroke-width="2"/>
+  <circle cx="506" cy="177" r="21" fill="#14171c" stroke="#2d333c"/>
+  <circle cx="506" cy="177" r="8" fill="#1f242b"/>
+  <text x="506" y="222" font-size="7.5" fill="#6b7280" text-anchor="middle">speaker</text>
+
+  <!-- HUB75 box header, the ribbon alternative to the rear pins -->
+  <rect x="421" y="218" width="26" height="58" rx="2" fill="#0b0d10" stroke="#3f4854"/>
+  <text transform="rotate(-90 434 247)" x="434" y="250" font-size="7.5" fill="#6b7280" text-anchor="middle">HUB75</text>
+
+  <!-- ESP32-S3 module -->
+  <rect x="513" y="232" width="62" height="52" rx="2" fill="#aab3bd" stroke="#7b8794"/>
+  <rect x="513" y="232" width="62" height="11" fill="#c9d1d9"/>
+  <text x="544" y="264" font-size="8" font-weight="600" fill="#1f2937" text-anchor="middle">ESP32-S3</text>
+
+  <!-- microSD -->
+  <rect x="454" y="242" width="52" height="56" rx="2" fill="#cbd5e1" stroke="#64748b"/>
+  <rect x="460" y="286" width="40" height="12" fill="#b8c2cc"/>
+  <text x="480" y="264" font-size="7.5" fill="#475569" text-anchor="middle">microSD</text>
+
+  <!-- RTC battery holder -->
+  <rect x="421" y="284" width="24" height="16" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
+  <text x="433" y="295" font-size="7" fill="#57534e" text-anchor="middle">RTC</text>
+
+  <!-- USB-C ports, BOOT and EN -->
+  <rect x="595" y="150" width="34" height="18" rx="6" fill="#cbd5e1" stroke="#64748b"/>
+  <rect x="595" y="186" width="34" height="18" rx="6" fill="#cbd5e1" stroke="#64748b"/>
+  <rect x="578" y="172" width="12" height="11" rx="2" fill="#d1d5db"/>
+  <rect x="578" y="208" width="12" height="11" rx="2" fill="#d1d5db"/>
+  <text x="574" y="165" font-size="7.5" fill="#94a3b8" text-anchor="end">power in</text>
+  <text x="574" y="201" font-size="7.5" fill="#94a3b8" text-anchor="end">flash</text>
+  <rect x="629" y="188" width="16" height="14" rx="3" fill="#475569"/>
+
+  <!-- 4-pin 1 mm I2C header -->
+  <rect x="596" y="226" width="15" height="24" rx="2" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="590" y="242" font-size="7.5" fill="#94a3b8" text-anchor="end">I2C</text>
+
+  <!-- thumb wheel, overhangs the right edge -->
+  <circle cx="602" cy="272" r="20" fill="#caa64b" stroke="#8a6d1f" stroke-width="1.6"/>
+  <g stroke="#8a6d1f" stroke-width="1">
+    <line x1="585" y1="264" x2="619" y2="264"/><line x1="583" y1="272" x2="621" y2="272"/><line x1="585" y1="280" x2="619" y2="280"/>
+  </g>
+  <circle cx="584" cy="296" r="3.5" fill="#ef4444"/>
+
+  <!-- ================= GY-BNO08X on the center rib ================= -->
+  <rect x="250" y="320" width="140" height="76" rx="2" fill="#0f1215" opacity="0.5"/>
+  <rect x="256" y="312" width="128" height="76" rx="4" fill="#6d28d9" stroke="#4c1d95" stroke-width="1.5"/>
+  <rect x="302" y="348" width="26" height="26" rx="2" fill="#111827"/>
+  <g fill="#d4af37">
+    <circle cx="266" cy="322" r="2.1"/><circle cx="278" cy="322" r="2.1"/><circle cx="290" cy="322" r="2.1"/><circle cx="302" cy="322" r="2.1"/><circle cx="314" cy="322" r="2.1"/>
+    <circle cx="326" cy="322" r="2.1"/><circle cx="338" cy="322" r="2.1"/><circle cx="350" cy="322" r="2.1"/><circle cx="362" cy="322" r="2.1"/><circle cx="374" cy="322" r="2.1"/>
+  </g>
+  <g font-size="6.5" fill="#ddd6fe">
+    <text transform="rotate(-90 266 332)" x="266" y="334" text-anchor="end">PS0</text>
+    <text transform="rotate(-90 278 332)" x="278" y="334" text-anchor="end">PS1</text>
+    <text transform="rotate(-90 290 332)" x="290" y="334" text-anchor="end">RST</text>
+    <text transform="rotate(-90 302 332)" x="302" y="334" text-anchor="end">INT</text>
+    <text transform="rotate(-90 314 332)" x="314" y="334" text-anchor="end">CS</text>
+    <text transform="rotate(-90 326 332)" x="326" y="334" text-anchor="end">AD0</text>
+    <text transform="rotate(-90 338 332)" x="338" y="334" text-anchor="end">SDA</text>
+    <text transform="rotate(-90 350 332)" x="350" y="334" text-anchor="end">SCL</text>
+    <text transform="rotate(-90 362 332)" x="362" y="334" text-anchor="end">GND</text>
+    <text transform="rotate(-90 374 332)" x="374" y="334" text-anchor="end">VCC</text>
+  </g>
+  <text x="320" y="384" font-size="9" font-weight="600" fill="#ddd6fe" text-anchor="middle">GY-BNO08X</text>
+
+  <!-- ================= IMU harness ================= -->
+  <g class="halo" fill="none" stroke-width="3.8" stroke-linecap="round">
+    <path d="M338,292 C338,212 380,114 424,100"/>
+    <path d="M354,292 C354,204 390,124 424,110"/>
+    <path d="M370,292 C370,196 398,134 424,120"/>
+    <path d="M268,292 C268,170 284,72 340,72 L530,72 C538,72 546,78 546,94"/>
+    <path d="M280,292 C280,178 298,84 356,84 L516,84 C524,84 532,88 532,94"/>
+  </g>
+  <g fill="none" stroke-width="2.8" stroke-linecap="round">
+    <path d="M338,292 C338,212 380,114 424,100" stroke="#22c55e"/>
+    <path d="M354,292 C354,204 390,124 424,110" stroke="#8b5cf6"/>
+    <path class="wVcc" d="M370,292 C370,196 398,134 424,120"/>
+    <path d="M268,292 C268,170 284,72 340,72 L530,72 C538,72 546,78 546,94" stroke="#ef4444"/>
+    <path class="wPs1" d="M280,292 C280,178 298,84 356,84 L516,84 C524,84 532,88 532,94"/>
+  </g>
+
+  <!-- ================= panel 5 V harness, thicker and darker ================= -->
+  <g class="halo" fill="none" stroke-width="8" stroke-linecap="round">
+    <path d="M421,152 C364,152 284,188 252,262"/>
+    <path d="M421,170 C372,172 296,206 252,274"/>
+  </g>
+  <g fill="none" stroke-width="5.5" stroke-linecap="round">
+    <path d="M421,152 C364,152 284,188 252,262" stroke="#991b1b"/>
+    <path class="w5vk" d="M421,170 C372,172 296,206 252,274"/>
+  </g>
+
+  <!-- JST housings, over the wire ends -->
+  <rect x="260" y="292" width="26" height="22" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
+  <rect x="332" y="292" width="48" height="22" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
+  <rect x="424" y="94" width="68" height="30" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
+  <rect x="522" y="94" width="34" height="30" rx="2" fill="#f5f5f4" stroke="#a8a29e"/>
+  <g stroke="#d6d3d1">
+    <line x1="440" y1="98" x2="440" y2="120"/><line x1="456" y1="98" x2="456" y2="120"/><line x1="472" y1="98" x2="472" y2="120"/>
+    <line x1="539" y1="98" x2="539" y2="120"/>
+  </g>
+
+  <!-- ================= labels ================= -->
+  <text class="t1" x="660" y="104" font-size="13" font-weight="600">Seengreat HUB75 S3</text>
+  <line class="lead" x1="654" y1="100" x2="616" y2="96" stroke-dasharray="3 3"/>
+
+  <text class="t1" x="660" y="276" font-size="13" font-weight="600">thumb wheel</text>
+  <line class="lead" x1="654" y1="272" x2="626" y2="272" stroke-dasharray="3 3"/>
+
+  <text class="t1" x="660" y="396" font-size="13" font-weight="600">Harness</text>
+  <g class="t2" font-size="12.5" stroke-linecap="round">
+    <line class="wVcc" x1="662" y1="418" x2="690" y2="418" stroke-width="4"/><text x="700" y="422">VCC &#8594; 3V3</text>
+    <line x1="662" y1="444" x2="690" y2="444" stroke="#8b5cf6" stroke-width="4"/><text x="700" y="448">GND &#8594; GND</text>
+    <line x1="662" y1="470" x2="690" y2="470" stroke="#22c55e" stroke-width="4"/><text x="700" y="474">SDA (TX) &#8594; RX0</text>
+    <line class="wPs1" x1="662" y1="496" x2="690" y2="496" stroke-width="4"/><text x="700" y="500">PS1 &#8594; GND</text>
+    <line x1="662" y1="522" x2="690" y2="522" stroke="#ef4444" stroke-width="4"/><text x="700" y="526">PS0 &#8594; 3V3</text>
+  </g>
+
+  <text class="t1" x="660" y="568" font-size="13" font-weight="600">Panel 5 V</text>
+  <g class="t2" font-size="12.5">
+    <line x1="662" y1="590" x2="690" y2="590" stroke="#991b1b" stroke-width="6" stroke-linecap="round"/>
+    <line class="w5vk" x1="662" y1="608" x2="690" y2="608" stroke-width="6" stroke-linecap="round"/>
+    <text x="700" y="604">5V OUT &#8594; panel</text>
+  </g>
 </svg>

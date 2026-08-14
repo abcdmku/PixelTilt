@@ -1,51 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 392" font-family="Segoe UI, Arial, sans-serif">
-  <rect width="1000" height="392" fill="#f8fafc"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 296" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .bg   { fill: #f8fafc; }
+    .card { fill: #ffffff; stroke: #cbd5e1; }
+    .t1   { fill: #0f172a; }
+    .t2   { fill: #475569; }
+    .t3   { fill: #64748b; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .t1   { fill: #e6edf3; }
+      .t2   { fill: #9aa4b2; }
+      .t3   { fill: #8b949e; }
+    }
+  </style>
 
-  <text x="40" y="42" font-size="20" font-weight="700" fill="#0f172a">Where things live</text>
-  <text x="40" y="64" font-size="13" fill="#64748b">Shared code on the left, platform code on the right. Nothing in core/ knows which target it is compiled for.</text>
+  <rect class="bg" width="1000" height="296"/>
 
   <!-- shared column -->
-  <rect x="40" y="92" width="446" height="264" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="62" y="118" font-size="12" font-weight="700" fill="#64748b" letter-spacing="0.6">SHARED, FREESTANDING C++</text>
+  <rect class="card" x="40" y="16" width="446" height="264" rx="6"/>
+  <text class="t3" x="62" y="42" font-size="12" font-weight="700" letter-spacing="0.6">SHARED, FREESTANDING C++</text>
 
-  <text x="62" y="152" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">core/</text>
-  <g font-size="12" fill="#475569">
-    <text x="62" y="172">Engine, menu, gfx, input, math, audio events and</text>
-    <text x="62" y="189">score storage. No libc, no heap, no allocations.</text>
+  <text class="t1" x="62" y="76" font-family="Consolas, monospace" font-size="13" font-weight="700">core/</text>
+  <g class="t2" font-size="12">
+    <text x="62" y="96">Engine, menu, gfx, input, math, audio events and</text>
+    <text x="62" y="113">score storage. No libc, no heap, no allocations.</text>
   </g>
 
-  <text x="62" y="221" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">games/</text>
-  <g font-size="12" fill="#475569">
-    <text x="62" y="241">One folder per game, plus _template/ to copy from</text>
-    <text x="62" y="258">and generated/game_list.cpp, the registry that</text>
-    <text x="62" y="275">npm run gen rewrites.</text>
+  <text class="t1" x="62" y="145" font-family="Consolas, monospace" font-size="13" font-weight="700">games/</text>
+  <g class="t2" font-size="12">
+    <text x="62" y="165">One folder per game, plus _template/ to copy from</text>
+    <text x="62" y="182">and generated/game_list.cpp, the registry that</text>
+    <text x="62" y="199">npm run gen rewrites.</text>
   </g>
 
-  <text x="62" y="307" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">tools/</text>
-  <g font-size="12" fill="#475569">
-    <text x="62" y="327">build-wasm, gen-games, new-game, flash and the</text>
-    <text x="62" y="344">headless smoke test. Node, zero dependencies.</text>
+  <text class="t1" x="62" y="231" font-family="Consolas, monospace" font-size="13" font-weight="700">tools/</text>
+  <g class="t2" font-size="12">
+    <text x="62" y="251">build-wasm, gen-games, new-game, flash and the</text>
+    <text x="62" y="268">headless smoke test. Node, zero dependencies.</text>
   </g>
 
   <!-- platform column -->
-  <rect x="514" y="92" width="446" height="264" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="536" y="118" font-size="12" font-weight="700" fill="#64748b" letter-spacing="0.6">PLATFORM LAYERS</text>
+  <rect class="card" x="514" y="16" width="446" height="264" rx="6"/>
+  <text class="t3" x="536" y="42" font-size="12" font-weight="700" letter-spacing="0.6">PLATFORM LAYERS</text>
 
-  <text x="536" y="152" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">emulator/</text>
-  <g font-size="12" fill="#475569">
-    <text x="536" y="172">The WASM export shim. In the browser it plays the</text>
-    <text x="536" y="189">part the ESP32 plays on hardware.</text>
+  <text class="t1" x="536" y="76" font-family="Consolas, monospace" font-size="13" font-weight="700">emulator/</text>
+  <g class="t2" font-size="12">
+    <text x="536" y="96">The WASM export shim. In the browser it plays the</text>
+    <text x="536" y="113">part the ESP32 plays on hardware.</text>
   </g>
 
-  <text x="536" y="221" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">frontend/</text>
-  <g font-size="12" fill="#475569">
-    <text x="536" y="241">React and Vite test bench: LED renderer, draggable</text>
-    <text x="536" y="258">3D panel, game picker, Audio Lab.</text>
+  <text class="t1" x="536" y="145" font-family="Consolas, monospace" font-size="13" font-weight="700">frontend/</text>
+  <g class="t2" font-size="12">
+    <text x="536" y="165">React and Vite test bench: LED renderer, draggable</text>
+    <text x="536" y="182">3D panel, game picker, Audio Lab.</text>
   </g>
 
-  <text x="536" y="307" font-family="Consolas, monospace" font-size="13" font-weight="700" fill="#0f172a">firmware/</text>
-  <g font-size="12" fill="#475569">
-    <text x="536" y="327">ESP32-S3 layer: HUB75 DMA, BNO08x UART-RVC</text>
-    <text x="536" y="344">reader, PCA9557 wheel, NVS settings, ES8311 audio.</text>
+  <text class="t1" x="536" y="231" font-family="Consolas, monospace" font-size="13" font-weight="700">firmware/</text>
+  <g class="t2" font-size="12">
+    <text x="536" y="251">ESP32-S3 layer: HUB75 DMA, BNO08x UART-RVC</text>
+    <text x="536" y="268">reader, PCA9557 wheel, NVS settings, ES8311 audio.</text>
   </g>
 </svg>

@@ -1,60 +1,74 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 380" font-family="Segoe UI, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 236" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .bg    { fill: #f8fafc; }
+    .card  { fill: #ffffff; stroke: #cbd5e1; }
+    .core  { fill: #14161c; stroke: #334155; }
+    .chip  { fill: #1e2430; stroke: #3f4854; }
+    .t1    { fill: #0f172a; }
+    .t2    { fill: #64748b; }
+    .tinv1 { fill: #e2e8f0; }
+    .tinv2 { fill: #94a3b8; }
+    .tinv3 { fill: #cbd5e1; }
+    .wire  { stroke: #64748b; }
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0d1117; }
+      .card { fill: #161b22; stroke: #30363d; }
+      .core { fill: #010409; stroke: #30363d; }
+      .chip { fill: #161b22; stroke: #30363d; }
+      .t1   { fill: #e6edf3; }
+      .t2   { fill: #9aa4b2; }
+      .wire { stroke: #6b7684; }
+    }
+  </style>
   <defs>
     <marker id="a-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
       <path d="M0,1 L7,4.5 L0,8 Z" fill="#64748b"/>
     </marker>
   </defs>
 
-  <rect width="1000" height="380" fill="#f8fafc"/>
-
-  <text x="40" y="42" font-size="20" font-weight="700" fill="#0f172a">One game source, two build targets</text>
-  <text x="40" y="64" font-size="13" fill="#64748b">The bytes you play in the browser are the bytes that run on the panel.</text>
+  <rect class="bg" width="1000" height="236"/>
 
   <!-- game source -->
-  <rect x="40" y="140" width="176" height="96" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="128" y="170" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Consolas, monospace">games/&lt;name&gt;/</text>
-  <text x="128" y="190" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Consolas, monospace">game.cpp</text>
-  <text x="128" y="214" font-size="11" fill="#64748b" text-anchor="middle">one file, init + update</text>
+  <rect class="card" x="40" y="64" width="176" height="96" rx="6"/>
+  <text class="t1" x="128" y="94" font-size="13" font-weight="700" text-anchor="middle" font-family="Consolas, monospace">games/&lt;name&gt;/</text>
+  <text class="t1" x="128" y="114" font-size="13" font-weight="700" text-anchor="middle" font-family="Consolas, monospace">game.cpp</text>
+  <text class="t2" x="128" y="138" font-size="11" text-anchor="middle">one file, init + update</text>
 
-  <line x1="220" y1="188" x2="272" y2="188" stroke="#64748b" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+  <line class="wire" x1="220" y1="112" x2="272" y2="112" stroke-width="1.5" marker-end="url(#a-arrow)"/>
 
   <!-- core -->
-  <rect x="280" y="112" width="252" height="152" rx="6" fill="#14161c" stroke="#334155"/>
-  <text x="406" y="138" font-size="14" font-weight="700" fill="#e2e8f0" text-anchor="middle" font-family="Consolas, monospace">core/</text>
-  <text x="406" y="156" font-size="11" fill="#94a3b8" text-anchor="middle">freestanding C++, no libc, no heap</text>
-  <g font-size="11" fill="#cbd5e1" text-anchor="middle">
-    <rect x="298" y="168" width="66" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="331" y="184">gfx</text>
-    <rect x="372" y="168" width="66" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="405" y="184">input</text>
-    <rect x="446" y="168" width="68" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="480" y="184">ptmath</text>
-    <rect x="298" y="200" width="66" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="331" y="216">audio</text>
-    <rect x="372" y="200" width="66" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="405" y="216">storage</text>
-    <rect x="446" y="200" width="68" height="24" rx="3" fill="#1e2430" stroke="#3f4854"/><text x="480" y="216">engine</text>
+  <rect class="core" x="280" y="36" width="252" height="152" rx="6"/>
+  <text class="tinv1" x="406" y="62" font-size="14" font-weight="700" text-anchor="middle" font-family="Consolas, monospace">core/</text>
+  <text class="tinv2" x="406" y="80" font-size="11" text-anchor="middle">freestanding C++, no libc, no heap</text>
+  <g class="tinv3" font-size="11" text-anchor="middle">
+    <rect class="chip" x="298" y="92" width="66" height="24" rx="3"/><text x="331" y="108">gfx</text>
+    <rect class="chip" x="372" y="92" width="66" height="24" rx="3"/><text x="405" y="108">input</text>
+    <rect class="chip" x="446" y="92" width="68" height="24" rx="3"/><text x="480" y="108">ptmath</text>
+    <rect class="chip" x="298" y="124" width="66" height="24" rx="3"/><text x="331" y="140">audio</text>
+    <rect class="chip" x="372" y="124" width="66" height="24" rx="3"/><text x="405" y="140">storage</text>
+    <rect class="chip" x="446" y="124" width="68" height="24" rx="3"/><text x="480" y="140">engine</text>
   </g>
-  <text x="406" y="248" font-size="11" fill="#94a3b8" text-anchor="middle">engine owns the menu, pause and high scores</text>
+  <text class="tinv2" x="406" y="172" font-size="11" text-anchor="middle">engine owns the menu, pause and high scores</text>
 
   <!-- split to two targets -->
-  <path d="M536,188 L562,188 L562,116 L596,116" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#a-arrow)"/>
-  <path d="M536,188 L562,188 L562,262 L596,262" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+  <path class="wire" d="M536,112 L562,112 L562,40 L596,40" fill="none" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+  <path class="wire" d="M536,112 L562,112 L562,186 L596,186" fill="none" stroke-width="1.5" marker-end="url(#a-arrow)"/>
 
   <!-- wasm branch -->
-  <rect x="604" y="92" width="150" height="48" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="679" y="112" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">clang &#8594; WebAssembly</text>
-  <text x="679" y="129" font-size="11" fill="#64748b" text-anchor="middle">110 KB, 42 KB gzipped</text>
-  <line x1="758" y1="116" x2="792" y2="116" stroke="#64748b" stroke-width="1.5" marker-end="url(#a-arrow)"/>
-  <rect x="800" y="86" width="160" height="60" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="880" y="110" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">React + Vite emulator</text>
-  <text x="880" y="128" font-size="11" fill="#64748b" text-anchor="middle">3D panel, canvas, Web Audio</text>
+  <rect class="card" x="604" y="16" width="150" height="48" rx="4"/>
+  <text class="t1" x="679" y="36" font-size="12" font-weight="600" text-anchor="middle">clang &#8594; WebAssembly</text>
+  <text class="t2" x="679" y="53" font-size="11" text-anchor="middle">110 KB, 42 KB gzipped</text>
+  <line class="wire" x1="758" y1="40" x2="792" y2="40" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+  <rect class="card" x="800" y="10" width="160" height="60" rx="4"/>
+  <text class="t1" x="880" y="34" font-size="12" font-weight="600" text-anchor="middle">React + Vite emulator</text>
+  <text class="t2" x="880" y="52" font-size="11" text-anchor="middle">3D panel, canvas, Web Audio</text>
 
   <!-- firmware branch -->
-  <rect x="604" y="238" width="150" height="48" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="679" y="258" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">PlatformIO &#8594; ESP32-S3</text>
-  <text x="679" y="275" font-size="11" fill="#64748b" text-anchor="middle">Seengreat HUB75 S3</text>
-  <line x1="758" y1="262" x2="792" y2="262" stroke="#64748b" stroke-width="1.5" marker-end="url(#a-arrow)"/>
-  <rect x="800" y="232" width="160" height="60" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
-  <text x="880" y="256" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">64 &#215; 64 HUB75 panel</text>
-  <text x="880" y="274" font-size="11" fill="#64748b" text-anchor="middle">I2S DMA, BNO08x tilt</text>
-
-  <!-- shared loop -->
-  <rect x="40" y="308" width="920" height="44" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
-  <text x="60" y="335" font-size="12" fill="#475569">Both targets call the same loop, <tspan font-family="Consolas, monospace" font-weight="600" fill="#0f172a">engineTick(tiltX, tiltY, spin, buttons, dt)</tspan>, which writes <tspan font-family="Consolas, monospace" font-weight="600" fill="#0f172a">framebuffer[64*64*3]</tspan> for the host to blit.</text>
+  <rect class="card" x="604" y="162" width="150" height="48" rx="4"/>
+  <text class="t1" x="679" y="182" font-size="12" font-weight="600" text-anchor="middle">PlatformIO &#8594; ESP32-S3</text>
+  <text class="t2" x="679" y="199" font-size="11" text-anchor="middle">Seengreat HUB75 S3</text>
+  <line class="wire" x1="758" y1="186" x2="792" y2="186" stroke-width="1.5" marker-end="url(#a-arrow)"/>
+  <rect class="card" x="800" y="156" width="160" height="60" rx="4"/>
+  <text class="t1" x="880" y="180" font-size="12" font-weight="600" text-anchor="middle">64 &#215; 64 HUB75 panel</text>
+  <text class="t2" x="880" y="198" font-size="11" text-anchor="middle">I2S DMA, BNO08x tilt</text>
 </svg>
