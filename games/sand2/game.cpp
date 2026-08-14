@@ -40,9 +40,11 @@ constexpr int NP = W * ROWS;         // particle count
 constexpr float PX_PER_G = 900.0f;
 // Rotation pseudo-forces are geometric (omega^2 * r in px IS px accel), but
 // gravity here is compressed (900 vs the panel's true ~3270 px/s^2), so
-// full-scale rotation would overpower it 3.6x beyond real life. 0.55 splits
-// the difference: spins clearly fling and swirl, gravity still wins at rest.
+// full-scale rotation would overpower it 3.6x beyond real life.
 constexpr float ROT_SCALE = 0.55f;
+// Classic Sand II needs a stronger response so a full emulator spin can
+// break the packed bed loose. Keep the themed variants at their tuned scales.
+constexpr float CLASSIC_ROT_SCALE = 1.1f;
 constexpr float VMAX = 260.0f;       // speed cap, px/s
 constexpr float FIELD_MAX = 3.0f;    // sanity clamp only — full slam violence
 constexpr int   SUBSTEPS = 2;        // integration substeps per frame
@@ -174,7 +176,8 @@ void initRuntime() {
                  activeFlavor == SAND2_STAR ? 0.05f :
                  activeFlavor == SAND2_FERRO ? 0.08f :
                  activeFlavor == SAND2_NEON ? 0.02f : 1.0f;
-  rotationScale = activeFlavor == SAND2_STAR ? 0.9f :
+  rotationScale = activeFlavor == SAND2_CLASSIC ? CLASSIC_ROT_SCALE :
+                  activeFlavor == SAND2_STAR ? 0.9f :
                   activeFlavor == SAND2_NEON ? 0.2f : ROT_SCALE;
   velocityMax = activeFlavor == SAND2_LAVA ? 115.0f :
                 activeFlavor == SAND2_SNOW ? 150.0f :
