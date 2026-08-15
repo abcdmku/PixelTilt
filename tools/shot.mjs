@@ -76,7 +76,9 @@ for (let i = 0; i < count; i++) if (cstr(e.pt_game_title(i)).toUpperCase().inclu
 if (idx < 0) throw new Error(`no game matching ${want}; have ${Array.from({length: count}, (_, i) => cstr(e.pt_game_title(i))).join(", ")}`);
 e.pt_launch(idx);
 
-// script: [{name, frames, tx, buttons}] executed in order, PNG saved after each step
+// script: [{name, frames, downs, tx, ty, spin, ax, ay, az,
+//           music:[level,bass,mid,high,beat]}]
+// executed in order, PNG saved after each step.
 const steps = script ?? [
   { name: "start", frames: 2 },
   { name: "walk", frames: 90, tx: 0.9 },
@@ -85,7 +87,21 @@ const steps = script ?? [
   { name: "far", frames: 240, tx: 0.9 },
 ];
 for (const s of steps) {
-  for (let i = 0; i < (s.frames ?? 1); i++) tick(s.tx ?? 0, s.ty ?? 0, s.buttons ?? 0, s.spin ?? 0);
+  for (let i = 0; i < (s.downs ?? 0); i++) {
+    tick(0, 0, BTN_DOWN);
+    tick();
+  }
+  for (let i = 0; i < (s.frames ?? 1); i++) {
+    const music = s.music ?? [0, 0, 0, 0, 0];
+    if (e.pt_music_analysis) {
+      const beat = s.beatEvery && i % s.beatEvery === 0 ? 1 : music[4];
+      e.pt_music_analysis(music[0], music[1], music[2], music[3], beat);
+    }
+    const ax = s.ax ?? 0, ay = s.ay ?? 0, az = s.az ?? 0;
+    e.pt_accel(ax, ay, az);
+    e.pt_gravity(s.gx ?? (s.tx ?? 0) + ax, s.gy ?? (s.ty ?? 0) + ay);
+    tick(s.tx ?? 0, s.ty ?? 0, s.buttons ?? 0, s.spin ?? 0);
+  }
   save(join(root, `${prefix}-${s.name}.png`));
   if (s.crop) save(join(root, `${prefix}-${s.name}-zoom.png`), 20, s.crop);
   console.log(`${prefix}-${s.name}.png`);

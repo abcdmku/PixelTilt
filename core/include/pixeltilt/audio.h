@@ -68,6 +68,9 @@ enum MusicTrack {
   MUS_ACTION,
   MUS_TENSE,
   MUS_WIZ3,
+  MUS_RAVE,
+  MUS_RAVE_ACID,
+  MUS_RAVE_DODGEMS,
   MUS_COUNT,
 };
 
@@ -115,6 +118,24 @@ void sfxSample(const uint8_t* pta, uint32_t len, float volume = 1.0f,
                float pitch = 1.0f);
 void music(MusicTrack t);                // no-op if t is already playing
 MusicTrack musicTrack();
+
+// Live analysis of the music bus, supplied by the platform host. Values are
+// normalized to [0,1]. `beat` is a short onset pulse rather than a latched
+// tempo clock. Games can use this without knowing whether the host is playing
+// a built-in synth track or a converted PTA recording.
+struct MusicAnalysis {
+  float level;
+  float bass;
+  float mid;
+  float high;
+  float beat;
+};
+
+// Written by the audio host and read by the game thread. Individual aligned
+// floats are atomic on both supported 32-bit targets; a mixed-frame read is
+// harmless for visual effects.
+extern volatile MusicAnalysis musicAnalysis;
+void setMusicAnalysis(float level, float bass, float mid, float high, float beat);
 
 // --- library access (hosts, tooling) ----------------------------------------
 const SfxPatch& sfxPatch(SfxStyle style, SfxId id);

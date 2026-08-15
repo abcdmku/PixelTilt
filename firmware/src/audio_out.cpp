@@ -297,6 +297,18 @@ double musicPlayhead = 0;
 int musicNextEvent = 0;
 MusicVoice musicVoices[MAX_MUSIC_VOICES];
 
+// Tiny three-band analyser for the panel visualizer. Two one-pole low-pass
+// filters split the actual music sample into bass, mid, and high without an
+// FFT or another audio-sized buffer. This also sees embedded PTA songs.
+float analysisLow = 0;
+float analysisLowMid = 0;
+float analysisBass = 0;
+float analysisMid = 0;
+float analysisHigh = 0;
+float analysisLevel = 0;
+float analysisBassFloor = 0;
+float analysisBeat = 0;
+
 int noteMidi(const char* s, int len) {
   if (len < 2) return -1;
   static const int8_t OFFSET[7] = {9, 11, 0, 2, 4, 5, 7};  // A B C D E F G
@@ -318,6 +330,10 @@ void loadTrack(pt::MusicTrack track) {
   musicNextEvent = 0;
   for (auto& v : musicVoices) v.active = false;
   pta.active = false;
+  analysisLow = analysisLowMid = 0;
+  analysisBass = analysisMid = analysisHigh = analysisLevel = 0;
+  analysisBassFloor = analysisBeat = 0;
+  pt::setMusicAnalysis(0, 0, 0, 0, 0);
 
   // An embedded PTA file (assets/music/) replaces the chiptune for the track.
   if (track > 0 && track < (int)(sizeof(MUSIC_PTA) / sizeof(MUSIC_PTA[0])) &&
@@ -476,6 +492,8 @@ void audioTask(void*) {
     float musicGain =
         pt::settings().musicVolume / 100.0f * AUDIO_MASTER_GAIN * AUDIO_MUSIC_SCALE;
 
+    float bassSum = 0, midSum = 0, highSum = 0, levelSum = 0;
+
     for (int i = 0; i < FRAMES; i++) {
       float sfx = 0, music = 0;
       for (auto& v : sfxVoices) {
@@ -488,12 +506,40 @@ void audioTask(void*) {
           if (v.active) music += renderMusicVoice(v);
         }
       }
+      // About 180 Hz and 1.6 kHz at 22.05 kHz. Absolute band energy is
+      // enough for light, motion, and onset detection and costs six adds per
+      // sample on the otherwise idle audio core.
+      analysisLow += (music - analysisLow) * 0.049f;
+      analysisLowMid += (music - analysisLowMid) * 0.313f;
+      bassSum += fabsf(analysisLow);
+      midSum += fabsf(analysisLowMid - analysisLow);
+      highSum += fabsf(music - analysisLowMid);
+      levelSum += fabsf(music);
       float out = sfx * sfxGain + music * musicGain;
       out = fmaxf(-1.0f, fminf(1.0f, out));
       int16_t s = (int16_t)(out * 32000.0f);
       mixBuf[i * 2] = s;
       mixBuf[i * 2 + 1] = s;
     }
+
+    const float invFrames = 1.0f / FRAMES;
+    float bass = fminf(1.0f, bassSum * invFrames * 9.0f);
+    float mid = fminf(1.0f, midSum * invFrames * 8.0f);
+    float high = fminf(1.0f, highSum * invFrames * 6.5f);
+    float level = fminf(1.0f, levelSum * invFrames * 6.0f);
+    auto follow = [](float current, float target) {
+      return current + (target - current) * (target > current ? 0.32f : 0.12f);
+    };
+    analysisBass = follow(analysisBass, bass);
+    analysisMid = follow(analysisMid, mid);
+    analysisHigh = follow(analysisHigh, high);
+    analysisLevel = follow(analysisLevel, level);
+    bool onset = analysisBass > 0.18f && analysisBass > analysisBassFloor + 0.075f;
+    analysisBassFloor += (analysisBass - analysisBassFloor) *
+                         (analysisBass > analysisBassFloor ? 0.10f : 0.018f);
+    analysisBeat = onset ? 1.0f : analysisBeat * 0.72f;
+    pt::setMusicAnalysis(analysisLevel, analysisBass, analysisMid,
+                         analysisHigh, analysisBeat);
 
     size_t written = 0;
     i2s_write(I2S_PORT, mixBuf, sizeof(mixBuf), &written, portMAX_DELAY);

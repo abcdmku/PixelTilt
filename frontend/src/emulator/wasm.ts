@@ -37,6 +37,7 @@ interface Exports {
   pt_music_serial(): number;
   pt_sfx_volume(): number;
   pt_music_volume(): number;
+  pt_music_analysis(level: number, bass: number, mid: number, high: number, beat: number): void;
   pt_sfx_count(): number;
   pt_sfx_style_count(): number;
   pt_sfx_patch(style: number, id: number): number;
@@ -84,6 +85,8 @@ export interface Emulator {
   /** User volume settings, percent 0..100 (host applies to its buses). */
   sfxVolume(): number;
   musicVolume(): number;
+  /** Feed normalized live music-bus analysis into audio-reactive games. */
+  setMusicAnalysis(level: number, bass: number, mid: number, high: number, beat: number): void;
   /** The core's built-in parametric SFX patch banks. */
   sfxLibrary: SfxLibrary;
 }
@@ -179,6 +182,8 @@ export async function loadEmulator(): Promise<Emulator> {
     musicSerial: () => e.pt_music_serial(),
     sfxVolume: () => e.pt_sfx_volume(),
     musicVolume: () => e.pt_music_volume(),
+    setMusicAnalysis: (level, bass, mid, high, beat) =>
+      e.pt_music_analysis(level, bass, mid, high, beat),
     sfxLibrary,
   };
 }

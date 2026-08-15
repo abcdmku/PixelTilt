@@ -14,9 +14,13 @@ File names map to `pt::MusicTrack`:
 | `action.pta` | ACTION tune | pong, breakout, hopper, snake, tunnel |
 | `tense.pta` | TENSE tune | cycles, invaders, meteors, stacker |
 | `wiz3.pta` | WIZ3 tune | Wiz3 |
+| `rave.pta` | RAVE tune | rave visualizer |
+| `rave_acid.pta` | TECHNO STYLE tune | rave visualizer |
+| `rave_dodgems.pta` | DODGEMS tune | rave visualizer |
 
-Missing files fall back to the chiptunes. Size is a non-issue on 16 MB of
-flash: a 2-minute song at 11 kHz ADPCM is about 650 KB.
+Missing menu, chill, action, tense, or WIZ3 files fall back to the chiptunes.
+The three RAVE tracks are PTA-only and ship with the visualizer. Size is a
+non-issue on 16 MB of flash: a 2-minute song at 11 kHz ADPCM is about 650 KB.
 
 The **ASSIGN** button on the Audio Lab page only affects the browser emulator,
 where it stores the song in localStorage. The device path is this folder plus

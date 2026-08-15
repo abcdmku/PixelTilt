@@ -87,6 +87,10 @@ WASM_EXPORT(pt_music_track) int pt_music_track() { return pt::musicTrack(); }
 WASM_EXPORT(pt_music_serial) unsigned pt_music_serial() { return pt::musicSerial(); }
 WASM_EXPORT(pt_sfx_volume) int pt_sfx_volume() { return pt::settings().sfxVolume; }
 WASM_EXPORT(pt_music_volume) int pt_music_volume() { return pt::settings().musicVolume; }
+WASM_EXPORT(pt_music_analysis) void pt_music_analysis(float level, float bass, float mid,
+                                                       float high, float beat) {
+  pt::setMusicAnalysis(level, bass, mid, high, beat);
+}
 
 // SFX library access for tooling (the Audio Lab patch browser).
 WASM_EXPORT(pt_sfx_count) int pt_sfx_count() { return pt::SFX_COUNT; }

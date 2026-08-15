@@ -8,10 +8,19 @@ import { ptaToAudioBuffer } from "./pta";
 // Mirrors pt::MusicTrack in core/include/pixeltilt/audio.h.
 export const MUS_NONE = 0;
 export const MUS_WIZ3 = 5;
-export const MUSIC_TRACK_NAMES = ["NONE", "MENU", "CHILL", "ACTION", "TENSE", "WIZ3"];
+export const MUS_RAVE = 6;
+export const MUS_RAVE_ACID = 7;
+export const MUS_RAVE_DODGEMS = 8;
+export const MUSIC_TRACK_NAMES = [
+  "NONE", "MENU", "CHILL", "ACTION", "TENSE",
+  "WIZ3", "RAVE", "TECHNO STYLE", "DODGEMS",
+];
 
 const BUNDLED_PTA_URLS: Partial<Record<number, string>> = {
   [MUS_WIZ3]: new URL("../../../assets/music/wiz3.pta", import.meta.url).href,
+  [MUS_RAVE]: new URL("../../../assets/music/rave.pta", import.meta.url).href,
+  [MUS_RAVE_ACID]: new URL("../../../assets/music/rave_acid.pta", import.meta.url).href,
+  [MUS_RAVE_DODGEMS]: new URL("../../../assets/music/rave_dodgems.pta", import.meta.url).href,
 };
 
 const OVERRIDE_KEY = (track: number) => `pixeltilt.music.${track}`;

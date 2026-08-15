@@ -21,12 +21,16 @@ elif not os.path.exists(generated):
     )
 
 # --- embed background-music PTA files ---------------------------------------
-# assets/music/<track>.pta (track = menu/chill/action/tense/wiz3) overrides the
+# assets/music/<track>.pta (track = menu/chill/action/tense/wiz3/rave/
+# rave_acid/rave_dodgems) overrides the
 # built-in chiptune for that pt::MusicTrack on the device, mirroring the
 # emulator's localStorage overrides. Arrays live in flash (const), so size is
 # effectively a non-issue on the 16 MB part.
 
-TRACKS = ["none", "menu", "chill", "action", "tense", "wiz3"]  # index = pt::MusicTrack
+TRACKS = [
+    "none", "menu", "chill", "action", "tense",
+    "wiz3", "rave", "rave_acid", "rave_dodgems",
+]  # index = pt::MusicTrack
 music_dir = os.path.join(project_dir, "assets", "music")
 out_path = os.path.join(project_dir, "firmware", "src", "generated_music.h")
 
