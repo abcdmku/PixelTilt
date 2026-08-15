@@ -12,7 +12,7 @@ import {
 } from "../audio/music";
 
 const RATES = [8000, 11025, 16000, 22050];
-const MUSIC_SLOTS = [1, 2, 3, 4]; // pt::MusicTrack ids with actual audio
+const MUSIC_SLOTS = [1, 2, 3, 4, 5]; // pt::MusicTrack ids with actual audio
 
 interface LoadedFile {
   name: string;

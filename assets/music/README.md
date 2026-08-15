@@ -13,6 +13,7 @@ File names map to `pt::MusicTrack`:
 | `chill.pta` | CHILL tune | flappy, lander, tilt maze |
 | `action.pta` | ACTION tune | pong, breakout, hopper, snake, tunnel |
 | `tense.pta` | TENSE tune | cycles, invaders, meteors, stacker |
+| `wiz3.pta` | WIZ3 tune | Wiz3 |
 
 Missing files fall back to the chiptunes. Size is a non-issue on 16 MB of
 flash: a 2-minute song at 11 kHz ADPCM is about 650 KB.

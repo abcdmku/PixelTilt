@@ -136,6 +136,11 @@ run total is what reaches the top-three table. A level-4 board pays four times
 a level-1 board at the same depth, which is what makes the hard types worth
 sitting with.
 
+The list and its panels are wheel-driven. Tilt does one thing there, and only
+on a firm lean: left and right swap columns. Vertical tilt is ignored, because
+a list that drifted while you held the board at an angle was impossible to
+aim.
+
 Where you got to in each type is kept for as long as the game is open, so
 picking a type you have played offers **RESUME** at the board you left on or
 **RESTART** from board one. Leaving already banked that run, so a resumed run
@@ -145,8 +150,9 @@ clears it.
 
 Every board reads the same way. Tilt moves the cursor or the pieces, CLICK is
 the main action, UP is the second action where a puzzle has one, and DOWN goes
-back to the list. CRATES has no use for CLICK, so a tap there deals the level
-again from the start; it fires on release, because a long press belongs to the
+back to the list, which asks first so a stray press cannot cost you a board in
+progress. CRATES has no use for CLICK, so a tap there deals the level again
+from the start; it fires on release, because a long press belongs to the
 engine's pause menu. Two types can be lost rather than left, MERGE when the
 grid jams and MINES when you dig a mine, and losing ends the run there.
 

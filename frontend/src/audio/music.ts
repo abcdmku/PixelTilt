@@ -7,7 +7,12 @@ import { ptaToAudioBuffer } from "./pta";
 
 // Mirrors pt::MusicTrack in core/include/pixeltilt/audio.h.
 export const MUS_NONE = 0;
-export const MUSIC_TRACK_NAMES = ["NONE", "MENU", "CHILL", "ACTION", "TENSE"];
+export const MUS_WIZ3 = 5;
+export const MUSIC_TRACK_NAMES = ["NONE", "MENU", "CHILL", "ACTION", "TENSE", "WIZ3"];
+
+const BUNDLED_PTA_URLS: Partial<Record<number, string>> = {
+  [MUS_WIZ3]: new URL("../../../assets/music/wiz3.pta", import.meta.url).href,
+};
 
 const OVERRIDE_KEY = (track: number) => `pixeltilt.music.${track}`;
 
@@ -110,6 +115,10 @@ const TRACKS: Record<number, TrackDef> = {
   },
 };
 
+// WIZ3 normally uses its bundled PTA song. Keep ACTION as its fallback if the
+// asset cannot be loaded.
+TRACKS[MUS_WIZ3] = TRACKS[3];
+
 // --- note parsing ------------------------------------------------------------
 
 const NOTE_OFFSETS: Record<string, number> = {
@@ -199,6 +208,22 @@ export function setMusicOverride(track: number, bytes: Uint8Array | null): boole
   return ok;
 }
 
+const bundledPtaLoads = new Map<number, Promise<Uint8Array>>();
+
+function loadBundledPta(track: number): Promise<Uint8Array> | null {
+  const url = BUNDLED_PTA_URLS[track];
+  if (!url) return null;
+  let pending = bundledPtaLoads.get(track);
+  if (!pending) {
+    pending = fetch(url).then(async (response) => {
+      if (!response.ok) throw new Error(`music asset returned ${response.status}`);
+      return new Uint8Array(await response.arrayBuffer());
+    });
+    bundledPtaLoads.set(track, pending);
+  }
+  return pending;
+}
+
 // --- sequencer ---------------------------------------------------------------
 
 const LOOKAHEAD = 0.4; // seconds scheduled ahead
@@ -208,6 +233,7 @@ let currentTrack = MUS_NONE;
 let timer: number | null = null;
 let stopPta: (() => void) | null = null;
 let live: { osc: OscillatorNode; gain: GainNode }[] = [];
+let musicRevision = 0;
 
 function scheduleNote(ev: NoteEvent, when: number) {
   const ctx = audioContext();
@@ -262,6 +288,7 @@ function startSequencer(def: TrackDef) {
 }
 
 export function stopMusic() {
+  musicRevision++;
   if (timer !== null) {
     clearInterval(timer);
     timer = null;
@@ -279,6 +306,26 @@ export function stopMusic() {
   }
   live = [];
   currentTrack = MUS_NONE;
+}
+
+function startPta(bytes: Uint8Array): boolean {
+  const ctx = audioContext();
+  if (!ctx) return false;
+  try {
+    stopPta = playBuffer(ptaToAudioBuffer(ctx, bytes), {
+      bus: "music",
+      loop: true,
+      gain: 0.8,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startFallback(track: number) {
+  const def = TRACKS[track];
+  if (def) startSequencer(def);
 }
 
 /** Play a pt::MusicTrack id; restarts only when the track actually changes. */
@@ -304,8 +351,21 @@ export function setMusicTrack(track: number) {
       // corrupt override — fall through to the built-in tune
     }
   }
-  const def = TRACKS[track];
-  if (def) startSequencer(def);
+  const bundled = loadBundledPta(track);
+  if (bundled) {
+    const revision = musicRevision;
+    void bundled.then(
+      (bytes) => {
+        if (revision !== musicRevision || currentTrack !== track || !audioUnlocked()) return;
+        if (!startPta(bytes)) startFallback(track);
+      },
+      () => {
+        if (revision === musicRevision && currentTrack === track) startFallback(track);
+      },
+    );
+    return;
+  }
+  startFallback(track);
 }
 
 export function currentMusicTrack(): number {

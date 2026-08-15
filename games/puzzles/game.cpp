@@ -52,7 +52,7 @@ constexpr int COUNT = 8;
 constexpr int PICK_ROWS = (COUNT + 1) / 2;
 constexpr int GRID_Y = 10 + (40 - PICK_ROWS * 8) / 2;
 
-enum Screen : uint8_t { PICK, RESUME, PLAY, WON, LOST };
+enum Screen : uint8_t { PICK, RESUME, PLAY, CONFIRM, WON, LOST };
 
 Screen screen;
 int cursor;      // picker slot, 0..COUNT-1
@@ -64,11 +64,12 @@ int lastRank;    // submitScore rank, 0 = new best
 // Furthest board reached in each type this session, 0 = never played. Kept in
 // RAM only: the save blob holds settings and score tables, nothing per-game.
 uint8_t reached[COUNT];
-int resumeCursor;  // 0 resume, 1 restart, 2 back
+int resumeCursor;   // 0 resume, 1 restart, 2 back
+int confirmCursor;  // 0 stay, 1 leave
 float flashT;      // picker flash after banking a run
 float hintT;       // control-hint fade in a board
 float bannerT;     // time on the solved / failed panel
-pz::Stepper pickStep, resumeStep;
+pz::Stepper pickStep;
 
 // Efficiency is capped, so a board is worth a fixed base for reaching it plus
 // up to the same again for solving it near par.
@@ -100,7 +101,7 @@ void bankRun() {
 void toPicker(float flash) {
   screen = PICK;
   flashT = flash;
-  pz::stepperInit(pickStep, 0.34f, 0.16f);
+  pz::stepperInit(pickStep, 0.34f, 0.16f, 0.70f, 0.40f);
 }
 
 // A resumed run starts fresh on points: whatever the last one earned was
@@ -161,11 +162,13 @@ void tickPicker(float dt) {
     cursor = (cursor + (input.justDown(BTN_UP) ? COUNT - 1 : 1)) % COUNT;
     sfx(SFX_BLIP, 1.3f);
   }
+  // Tilt only swaps columns here, and only on a firm lean. The wheel walks the
+  // list; a menu that also drifted on every small vertical wobble was too
+  // twitchy to hold steady.
   int dx = 0, dy = 0;
-  if (pz::stepTilt(pickStep, dt, dx, dy)) {
+  if (pz::stepTilt(pickStep, dt, dx, dy) && dx != 0) {
     int col = clampi(cursor / PICK_ROWS + dx, 0, 1);
-    int row = clampi(cursor % PICK_ROWS + dy, 0, PICK_ROWS - 1);
-    int next = mini(col * PICK_ROWS + row, COUNT - 1);  // short last column
+    int next = mini(col * PICK_ROWS + cursor % PICK_ROWS, COUNT - 1);
     if (next != cursor) sfx(SFX_BLIP, 1.3f);
     cursor = next;
   }
@@ -173,7 +176,6 @@ void tickPicker(float dt) {
     if (reached[cursor] > 0) {  // played before: offer the board you left on
       screen = RESUME;
       resumeCursor = 0;
-      pz::stepperInit(resumeStep, 0.34f, 0.16f);
       sfx(SFX_SELECT, 1.2f);
     } else {
       beginRun(0);
@@ -185,17 +187,15 @@ void tickPicker(float dt) {
 
 // --- resume or restart -------------------------------------------------------
 
+// Panels are wheel-driven only. Tilt belongs to the boards, and a dialog that
+// answered itself when you happened to be holding the board at an angle is a
+// dialog nobody trusts.
 void tickResume(float dt) {
+  (void)dt;
   constexpr int ITEMS = 3;
   if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
     resumeCursor = (resumeCursor + (input.justDown(BTN_UP) ? ITEMS - 1 : 1)) % ITEMS;
     sfx(SFX_BLIP, 1.3f);
-  }
-  int dx = 0, dy = 0;
-  if (pz::stepTilt(resumeStep, dt, dx, dy) && dy != 0) {
-    int next = clampi(resumeCursor + dy, 0, ITEMS - 1);
-    if (next != resumeCursor) sfx(SFX_BLIP, 1.3f);
-    resumeCursor = next;
   }
   if (input.justDown(BTN_CLICK)) {
     if (resumeCursor == 0) beginRun(reached[cursor]);
@@ -227,10 +227,11 @@ void tickResume(float dt) {
 // --- a board in play ---------------------------------------------------------
 
 void tickPlay(float dt) {
-  if (input.justDown(BTN_DOWN)) {  // leave and bank whatever the run earned
-    bankRun();
-    toPicker(2.2f);
-    sfx(lastRun > 0 ? SFX_COIN : SFX_BLIP, 1.0f);
+  if (input.justDown(BTN_DOWN)) {  // ask before abandoning a board in progress
+    screen = CONFIRM;
+    confirmCursor = 0;
+    dimFrame();
+    sfx(SFX_BLIP, 0.7f);
     return;
   }
 
@@ -257,6 +258,39 @@ void tickPlay(float dt) {
     bannerT = 0;
     dimFrame();
     sfx(SFX_LOSE);
+  }
+}
+
+// DOWN asks first. STAY sits under the cursor, so the stray CLICK that the
+// engine's pause hold sends through lands on the harmless answer.
+void tickConfirm() {
+  constexpr int ITEMS = 2;
+  if (input.justDown(BTN_UP) || input.justDown(BTN_DOWN)) {
+    confirmCursor = (confirmCursor + 1) % ITEMS;
+    sfx(SFX_BLIP, 1.3f);
+  }
+  if (input.justDown(BTN_CLICK)) {
+    if (confirmCursor == 0) {
+      screen = PLAY;
+      sfx(SFX_BLIP, 1.1f);
+    } else {
+      bankRun();
+      toPicker(2.2f);
+      sfx(lastRun > 0 ? SFX_COIN : SFX_BLIP, 1.0f);
+    }
+    return;
+  }
+
+  pz::banner(14, 38, rgb(210, 160, 40), 3);
+  textCentered(18, "BACK TO LIST?", WHITE);
+  if (runPoints > 0)
+    pz::labelNum(26, "BANK", runPoints, rgb(60, 130, 80), rgb(70, 220, 110));
+  const char* labels[ITEMS] = {"STAY", "LEAVE"};
+  for (int i = 0; i < ITEMS; i++) {
+    int y = 34 + i * 7;
+    bool sel = i == confirmCursor;
+    if (sel) text(14, y, ">", YELLOW);
+    text(20, y, labels[i], sel ? WHITE : GRAY);
   }
 }
 
@@ -305,23 +339,24 @@ void init() {
   lastRun = 0;
   lastRank = -1;
   resumeCursor = 0;
+  confirmCursor = 0;
   for (int i = 0; i < COUNT; i++) reached[i] = 0;
   flashT = 0;
   hintT = 0;
   bannerT = 0;
-  pz::stepperInit(pickStep, 0.34f, 0.16f);
-  pz::stepperInit(resumeStep, 0.34f, 0.16f);
+  pz::stepperInit(pickStep, 0.34f, 0.16f, 0.70f, 0.40f);
   pz::beginBoard(1);
 }
 
 void update(float dt) {
   if (flashT > 0) flashT -= dt;
   switch (screen) {
-    case PICK:   tickPicker(dt); break;
-    case RESUME: tickResume(dt); break;
-    case PLAY:   tickPlay(dt); break;
-    case WON:    tickWon(dt); break;
-    case LOST:   tickLost(dt); break;
+    case PICK:    tickPicker(dt); break;
+    case RESUME:  tickResume(dt); break;
+    case PLAY:    tickPlay(dt); break;
+    case CONFIRM: tickConfirm(); break;
+    case WON:     tickWon(dt); break;
+    case LOST:    tickLost(dt); break;
   }
 }
 

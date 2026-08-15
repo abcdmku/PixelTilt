@@ -64,14 +64,19 @@ inline Board fitBoard(int cols, int rows, int maxCell = 64) {
 struct Stepper {
   float first;  // delay before the first auto-repeat
   float next;   // delay between repeats; 0 = one step per lean
+  float fire;   // lean that counts as a step
+  float rearm;  // lean to fall back under before the next one counts
   float hold;
   int lastX, lastY;
   bool repeating;
 };
 
-inline void stepperInit(Stepper& s, float first = 0.30f, float next = 0.11f) {
+inline void stepperInit(Stepper& s, float first = 0.30f, float next = 0.11f,
+                        float fire = 0.45f, float rearm = 0.25f) {
   s.first = first;
   s.next = next;
+  s.fire = fire;
+  s.rearm = rearm;
   s.hold = 0;
   s.lastX = 0;
   s.lastY = 0;
@@ -81,14 +86,14 @@ inline void stepperInit(Stepper& s, float first = 0.30f, float next = 0.11f) {
 inline bool stepTilt(Stepper& s, float dt, int& dx, int& dy) {
   float ax = fabsf_(input.tiltX), ay = fabsf_(input.tiltY);
   float lean = fmaxf_(ax, ay);
-  if (lean < 0.25f) {  // level again: the next lean starts a fresh step
+  if (lean < s.rearm) {  // level again: the next lean starts a fresh step
     s.lastX = 0;
     s.lastY = 0;
     s.hold = 0;
     s.repeating = false;
     return false;
   }
-  if (lean < 0.45f) return false;  // hysteresis band, hold whatever we had
+  if (lean < s.fire) return false;  // hysteresis band, hold whatever we had
 
   int nx = 0, ny = 0;
   if (ax >= ay) nx = input.tiltX > 0 ? 1 : -1;
@@ -229,10 +234,11 @@ inline void cursorCorners(const Board& b, int c, int r, Color col) {
   vline(x + s - 1, y + s - 2, 2, col);
 }
 
-// Panel used by the solved / failed banners.
-inline void banner(int y, int h, Color edge) {
-  fillRect(6, y, SCREEN_W - 12, h, rgb(6, 6, 14));
-  rect(6, y, SCREEN_W - 12, h, edge);
+// Panel used by the solved / failed banners. `inset` widens it for a dialog
+// whose longest line would otherwise touch both borders.
+inline void banner(int y, int h, Color edge, int inset = 6) {
+  fillRect(inset, y, SCREEN_W - inset * 2, h, rgb(6, 6, 14));
+  rect(inset, y, SCREEN_W - inset * 2, h, edge);
 }
 
 }  // namespace pz

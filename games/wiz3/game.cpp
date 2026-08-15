@@ -20,6 +20,11 @@ constexpr float VIEW_W = SCREEN_W * 4.0f;
 constexpr float PLAYER_W = 16.0f;
 constexpr float PLAYER_H = 24.0f;
 constexpr float ORIGINAL_FPS = 1000.0f / 30.0f;
+constexpr float MOVE_STOP_TILT = 0.12f;
+constexpr float MOVE_START_TILT = 0.18f;
+constexpr float MOVE_FULL_TILT = 0.60f;
+constexpr float MOVE_MIN_SPEED = 58.0f;
+constexpr float MOVE_MAX_SPEED = 200.0f;
 
 // Collision rectangles from the original Bob subclasses. The generated
 // sprite sheets are rounded to the 4-pixel LED scale, but collision stays in
@@ -106,6 +111,7 @@ bool levelClear = false;
 bool won = false;
 bool restartLevel = false;
 bool facingRight = true;
+int moveDirection = 0;
 int checkpointFlag = 1;
 int checkpointSearchX = 0;
 int ridingPlatform = -1;
@@ -601,6 +607,7 @@ void loadLevel(int number) {
   py = fmaxf_(0.0f, (float)(startY * TILE) - 8.0f);
   vx = 0;
   vy = 0;
+  moveDirection = 0;
   grounded = false;
   jumps = 0;
   dead = false;
@@ -1086,20 +1093,39 @@ void movePlayer(float dt) {
     }
   }
 
-  float axis = tiltCurve(input.tiltX, 0.05f);
-  vx = axis * 145.0f;
-  if (fabsf_(axis) > 0.02f) {
-    facingRight = axis > 0;
+  const float tilt = input.tiltX;
+  const float tiltAmount = fabsf_(tilt);
+  const int tiltDirection = tilt < 0 ? -1 : 1;
+
+  // Use separate start and stop thresholds so sensor noise cannot make the
+  // wizard creep near level. Once the player commits to a direction, give a
+  // useful minimum speed and reach full speed before the panel is steep.
+  if (tiltAmount <= MOVE_STOP_TILT) {
+    moveDirection = 0;
+  } else if (tiltAmount >= MOVE_START_TILT) {
+    moveDirection = tiltDirection;
+  } else if (tiltDirection != moveDirection) {
+    moveDirection = 0;
+  }
+
+  if (moveDirection != 0) {
+    float strength = clampf((tiltAmount - MOVE_START_TILT) /
+                                (MOVE_FULL_TILT - MOVE_START_TILT),
+                            0.0f, 1.0f);
+    strength = 1.0f - (1.0f - strength) * (1.0f - strength);
+    vx = moveDirection * lerpf(MOVE_MIN_SPEED, MOVE_MAX_SPEED, strength);
+    facingRight = moveDirection > 0;
     walkTimer -= dt;
     if (grounded && walkTimer <= 0) {
       walkTimer = 0.18f;
       sfxSample(wiz3_assets::SAMPLE_WALK, sizeof(wiz3_assets::SAMPLE_WALK), 0.35f);
     }
   } else {
+    vx = 0;
     walkTimer = 0;
   }
 
-  if (input.justDown(BTN_CLICK) && (grounded || jumps < maxJumps)) {
+  if (input.justDown(BTN_UP) && (grounded || jumps < maxJumps)) {
     vy = highJump;
     grounded = false;
     jumps++;
@@ -1418,7 +1444,7 @@ void draw() {
 
 void init() {
   setSfxStyle(STYLE_CHIP);
-  music(MUS_ACTION);
+  music(MUS_WIZ3);
   currentLevel = 0;
   lives = 3;
   score = 0;

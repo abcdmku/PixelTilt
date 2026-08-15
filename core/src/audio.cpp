@@ -133,6 +133,7 @@ const MusicDef MUSIC_DEFS[MUS_COUNT] = {
     {72.0f, 2, 2, CHILL_CH},     // MUS_CHILL
     {140.0f, 4, 2, ACTION_CH},   // MUS_ACTION
     {120.0f, 4, 2, TENSE_CH},    // MUS_TENSE
+    {140.0f, 4, 2, ACTION_CH},   // MUS_WIZ3 (fallback when wiz3.pta is absent)
 };
 
 void push(const SfxPatch& p) {

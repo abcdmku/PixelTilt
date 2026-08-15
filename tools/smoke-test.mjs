@@ -296,6 +296,18 @@ e.pt_gravity(0, 0);
 check("games produced sfx events", e.pt_sfx_head() > 0 && e.pt_sfx_ring_cap() === 16);
 check("WIZ3 is registered as a scored game", ids.includes("wiz3") && gameHasScores[ids.indexOf("wiz3")]);
 const wiz3Source = readFileSync(join(root, "games", "wiz3", "game.cpp"), "utf8");
+e.pt_launch(ids.indexOf("wiz3"));
+tick();
+check("WIZ3 requests its dedicated music track", e.pt_music_track() === 5);
+check(
+  "WIZ3 tilt control has a stable stop zone and stronger full-speed motion",
+  wiz3Source.includes("MOVE_STOP_TILT = 0.12f") &&
+    wiz3Source.includes("MOVE_START_TILT = 0.18f") &&
+    wiz3Source.includes("MOVE_FULL_TILT = 0.60f") &&
+    wiz3Source.includes("MOVE_MAX_SPEED = 200.0f") &&
+    wiz3Source.includes("moveDirection = 0;") &&
+    !wiz3Source.includes("tiltCurve(input.tiltX, 0.05f)"),
+);
 check(
   "WIZ3 keeps separate side and one-way landing masks",
   wiz3Source.includes("blockAt(tx, ty, 1)") && wiz3Source.includes("blockAt(tx, ty, 3)"),
@@ -361,7 +373,14 @@ check("PUZZLES is registered as a scored game", puzzles >= 0 && gameHasScores[pu
     }
     return true;
   };
-  let started = true, returned = true;
+  // DOWN asks before abandoning a board. The dialog's amber border is the
+  // cheapest way to tell "it asked" from "it ignored the press".
+  const confirmPanelUp = () => {
+    const fb = new Uint8Array(e.memory.buffer, e.pt_framebuffer(), 64 * 64 * 3);
+    const i = (14 * 64 + 3) * 3;  // top-left corner of the leave dialog
+    return fb[i] > 180 && fb[i + 1] > 120 && fb[i + 2] < 90;
+  };
+  let started = true, returned = true, asked = true;
   for (let slot = 0; slot < wired.length; slot++) {
     e.pt_launch(puzzles);
     tick();
@@ -377,12 +396,17 @@ check("PUZZLES is registered as a scored game", puzzles >= 0 && gameHasScores[pu
     for (let f = 0; f < 40; f++) tick();
     tick(0, 0, BTN_CLICK);
     for (let f = 0; f < 10; f++) tick();
-    tick(0, 0, BTN_DOWN);
-    tick();
+    if (!onPicker()) {
+      tick(0, 0, BTN_DOWN); tick();       // asks rather than leaving
+      asked &&= confirmPanelUp();
+      tick(0, 0, BTN_DOWN); tick();       // STAY -> LEAVE
+      tick(0, 0, BTN_CLICK); tick();
+    }
     returned &&= onPicker();
   }
   check("every PUZZLES type starts from its own picker slot", started);
-  check("DOWN leaves any PUZZLES type for the picker", returned);
+  check("DOWN asks before leaving a board", asked);
+  check("confirming the prompt returns to the picker", returned);
 
   // CRATES board 1 is hand-built and its optimal solution is five moves, so it
   // is the one board the test can actually finish. That gets the run past
@@ -407,7 +431,9 @@ check("PUZZLES is registered as a scored game", puzzles >= 0 && gameHasScores[pu
   for (const [tx, ty] of [[-0.9, 0], [-0.9, 0], [0, -0.9], [0.9, 0], [0.9, 0]]) lean(tx, ty);
   check("CRATES board 1 solves in its five optimal moves", bannerIsGreen());
   for (let f = 0; f < 130; f++) tick();   // panel rolls into board 2
-  tick(0, 0, BTN_DOWN); tick();           // leave, banking the run
+  tick(0, 0, BTN_DOWN); tick();           // DOWN asks
+  tick(0, 0, BTN_DOWN); tick();           // STAY -> LEAVE
+  tick(0, 0, BTN_CLICK); tick();          // confirm, banking the run
   tick(0, 0, BTN_CLICK); tick();          // re-enter the same type
   check("a played PUZZLES type offers resume or restart", onPicker());
   tick(0, 0, BTN_CLICK); tick();          // confirm the highlighted RESUME

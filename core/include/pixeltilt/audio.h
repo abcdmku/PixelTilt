@@ -67,6 +67,7 @@ enum MusicTrack {
   MUS_CHILL,
   MUS_ACTION,
   MUS_TENSE,
+  MUS_WIZ3,
   MUS_COUNT,
 };
 
