@@ -404,18 +404,6 @@ body {
 .ui-frame-dark .panel-grid {
   background:
     linear-gradient(
-      168deg,
-      rgba(202, 205, 197, 0.072) 0 18%,
-      rgba(142, 149, 145, 0.045) 42%,
-      rgba(32, 38, 38, 0.02) 78%
-    ) 0 0 / calc(100% / 64) calc(100% / 64),
-    linear-gradient(
-      112deg,
-      rgba(218, 220, 210, 0.045),
-      rgba(150, 157, 153, 0.035) 54%,
-      rgba(71, 77, 76, 0.018)
-    ) 0 0 / calc(100% / 64) calc(100% / 64),
-    linear-gradient(
       to right,
       rgba(0, 0, 0, 0.84) 0 11%,
       transparent 11% 89%,
