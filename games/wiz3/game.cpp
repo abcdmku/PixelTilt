@@ -4,6 +4,7 @@
 #include "pixeltilt/pixeltilt.h"
 
 #include "assets.h"
+#include "art.h"
 
 using namespace pt;
 
@@ -38,6 +39,7 @@ struct Cell {
   uint8_t sprite = 0;
   uint8_t bonus = 0;
   uint8_t block = 0;
+  bool potionRed = false;
   int32_t flag = 0;
 };
 
@@ -46,6 +48,7 @@ struct Entity {
   bool transient = false;
   bool hazard = false;
   uint8_t type = 0;
+  uint8_t pickupEffect = 0;
   int frame = 0;
   float x = 0;
   float y = 0;
@@ -144,13 +147,12 @@ void drawNumber(int x, int y, int value, Color color) {
 // sheer detail. A 16x16-tile viewport has no detail to spare, so the layers are
 // separated by value instead: the backdrop sits back and cool, the platforms
 // read at full strength, and anything that moves is the brightest thing on the
-// panel. The hues are the original palette throughout.
-constexpr float BACK_DIM = 0.92f;
-constexpr float BACK_SAT = 0.86f;
-constexpr float FORE_SAT = 1.14f;
-constexpr float SPRITE_SAT = 1.30f;
-constexpr float SPRITE_LIFT = 0.55f;
-constexpr float RIM_DIM = 0.50f;
+// panel. Scenery retains its original hues; gameplay art uses the compact ink
+// set in art.h.
+constexpr float BACK_DIM = 0.64f;
+constexpr float BACK_SAT = 0.76f;
+constexpr float FORE_SAT = 1.10f;
+constexpr float RIM_DIM = 0.34f;
 
 uint8_t chan(float v) { return (uint8_t)clampi((int)(v + 0.5f), 0, 255); }
 
@@ -163,16 +165,9 @@ Color saturateColor(Color c, float k) {
   return rgb(chan(l + (c.r - l) * k), chan(l + (c.g - l) * k), chan(l + (c.b - l) * k));
 }
 
-// Lift the shadows without blowing the highlights, so a navy robe stays navy
-// but stops reading as the same black as its own outline. This is the shape of
-// a gamma curve; the core is freestanding, so no powf to reach for.
-uint8_t liftChannel(uint8_t v) { return chan(v * (1.0f + SPRITE_LIFT * (1.0f - v / 255.0f))); }
-
-Color liftColor(Color c) { return rgb(liftChannel(c.r), liftChannel(c.g), liftChannel(c.b)); }
-
 // Distance haze. The backdrop darkens towards the top of the panel and lifts
 // towards the horizon, which gives the flat sky tiles some depth for free.
-float backRamp(int sy) { return 0.78f + 0.32f * (float)clampi(sy, 0, SCREEN_H - 1) / (SCREEN_H - 1); }
+float backRamp(int sy) { return 0.82f + 0.24f * (float)clampi(sy, 0, SCREEN_H - 1) / (SCREEN_H - 1); }
 
 Color rawFrom565(uint16_t value) {
   uint8_t r = (uint8_t)((((value >> 11) & 31) * 255) / 31);
@@ -191,11 +186,38 @@ Color foreColor(uint16_t value) {
   return saturateColor(rawFrom565(value), FORE_SAT);
 }
 
-// Characters, pickups and projectiles. The lift keeps the wizard's near-black
-// robe shading from collapsing into his own outline at this size.
-Color spriteColor(uint16_t value) {
-  if (value == 1) return rgb(4, 4, 8);
-  return liftColor(saturateColor(rawFrom565(value), SPRITE_SAT));
+Color mixColor(Color a, Color b, float amount) {
+  return rgb(chan(a.r + (b.r - a.r) * amount),
+             chan(a.g + (b.g - a.g) * amount),
+             chan(a.b + (b.b - a.b) * amount));
+}
+
+// A small, shared ink set is easier to parse than hundreds of muddy colours
+// inherited from the source GIFs. Player hues are cool, hazards are warm,
+// treasure is gold or magenta, and scenery never uses these peak values.
+Color artColor(char ink, bool potionRed = false) {
+  switch (ink) {
+    case 'k': return rgb(5, 6, 12);
+    case 't': return rgb(45, 238, 220);
+    case 'b': return potionRed ? rgb(241, 51, 72) : rgb(48, 92, 232);
+    case 'n': return rgb(25, 39, 112);
+    case 's': return rgb(255, 188, 116);
+    case 'g': return rgb(255, 181, 43);
+    case 'y': return rgb(255, 238, 100);
+    case 'r': return rgb(241, 51, 72);
+    case 'o': return rgb(255, 116, 38);
+    case 'm': return rgb(238, 65, 202);
+    case 'v': return rgb(143, 88, 255);
+    case 'w': return rgb(250, 250, 234);
+    case 'a': return rgb(194, 210, 216);
+    case 'd': return rgb(73, 86, 99);
+    case 'h': return rgb(80, 211, 105);
+    case 'f': return rgb(24, 108, 66);
+    case 'q': return rgb(201, 184, 255);
+    case 'u': return rgb(139, 79, 34);
+    case 'c': return rgb(58, 207, 255);
+    default: return rgb(255, 0, 255);  // invalid art key, intentionally loud
+  }
 }
 
 // --- Silhouettes ------------------------------------------------------------
@@ -227,6 +249,48 @@ void rimNeighbours(int x, int y) {
   rimPixel(x, y + 1);
 }
 
+void drawBitmap(const wiz3_art::Bitmap& art, int anchorX, int anchorY,
+                SpritePass pass, bool flipX = false, bool flipY = false,
+                bool potionRed = false) {
+  const int sx = anchorX + art.offsetX;
+  const int sy = anchorY + art.offsetY;
+  for (int y = 0; y < art.height; y++) {
+    int sourceY = flipY ? art.height - 1 - y : y;
+    for (int x = 0; x < art.width; x++) {
+      int sourceX = flipX ? art.width - 1 - x : x;
+      char ink = art.rows[sourceY][sourceX];
+      if (ink == '.') continue;
+      if (pass == PASS_RIM) rimNeighbours(sx + x, sy + y);
+      else pixel(sx + x, sy + y, artColor(ink, potionRed));
+    }
+  }
+}
+
+void drawShrunkBitmap(const wiz3_art::Bitmap& art, int anchorX, int anchorY,
+                      int targetSize, SpritePass pass, bool potionRed = false) {
+  const int targetWidth = mini((int)art.width, targetSize);
+  const int targetHeight = mini((int)art.height, targetSize);
+  const int sx = anchorX + art.offsetX + ((int)art.width - targetWidth) / 2;
+  const int sy = anchorY + art.offsetY + ((int)art.height - targetHeight) / 2;
+
+  for (int sourceY = 0; sourceY < art.height; sourceY++) {
+    for (int sourceX = 0; sourceX < art.width; sourceX++) {
+      const char ink = art.rows[sourceY][sourceX];
+      if (ink == '.') continue;
+      const int x = targetWidth == 1 || art.width == 1
+                        ? 0
+                        : (sourceX * (targetWidth - 1) + (art.width - 1) / 2) /
+                              (art.width - 1);
+      const int y = targetHeight == 1 || art.height == 1
+                        ? 0
+                        : (sourceY * (targetHeight - 1) + (art.height - 1) / 2) /
+                              (art.height - 1);
+      if (pass == PASS_RIM) rimNeighbours(sx + x, sy + y);
+      else pixel(sx + x, sy + y, artColor(ink, potionRed));
+    }
+  }
+}
+
 void drawTile(uint8_t tile, int sx, int sy, bool foreground) {
   const uint16_t* pixels = foreground ? wiz3_assets::FORE_TILES : wiz3_assets::BACK_TILES;
   int base = (int)tile * 16;
@@ -234,25 +298,54 @@ void drawTile(uint8_t tile, int sx, int sy, bool foreground) {
     for (int x = 0; x < 4; x++) {
       uint16_t value = pixels[base + y * 4 + x];
       if (!value) continue;
-      pixel(sx + x, sy + y, foreground ? foreColor(value) : backColor(value, sy + y));
+      Color color = foreground ? foreColor(value) : backColor(value, sy + y);
+      if (foreground) {
+        const bool topEdge = y == 0 || pixels[base + (y - 1) * 4 + x] == 0;
+        const bool leftEdge = x == 0 || pixels[base + y * 4 + x - 1] == 0;
+        const bool bottomEdge = y == 3 || pixels[base + (y + 1) * 4 + x] == 0;
+        if (topEdge) color = mixColor(color, rgb(255, 231, 174), 0.18f);
+        else if (leftEdge) color = mixColor(color, rgb(213, 224, 235), 0.08f);
+        if (bottomEdge) color = scaleColor(color, 0.76f);
+      }
+      pixel(sx + x, sy + y, color);
     }
   }
 }
 
-void drawBonus(uint8_t bonus, int sx, int sy, SpritePass pass) {
-  if (bonus == 0 || bonus >= 16) return;
-  int base = (int)bonus * 16;
+bool isStoneCollision(const Cell& c) {
+  return c.fore == 0 && (c.block & 3) != 0 && c.back >= 32 && c.back <= 34;
+}
+
+bool isTreeLedgeCollision(const Cell& c) {
+  return (c.block & 3) != 0 && c.fore >= 97 && c.fore <= 103;
+}
+
+void drawStoneCollision(int sx, int sy, bool exposedTop) {
+  const Color stoneBody = rgb(132, 144, 156);
   for (int y = 0; y < 4; y++) {
     for (int x = 0; x < 4; x++) {
-      uint16_t value = wiz3_assets::BONUS_ICONS[base + y * 4 + x];
-      if (!value) continue;
-      if (pass == PASS_RIM) {
-        rimNeighbours(sx + x, sy + y);
-      } else {
-        pixel(sx + x, sy + y, spriteColor(value));
-      }
+      Color color = mixColor(getPixel(sx + x, sy + y), stoneBody, 0.50f);
+      if (y == 3) color = scaleColor(color, 0.72f);
+      pixel(sx + x, sy + y, color);
     }
   }
+  if (exposedTop) {
+    const Color stoneTop = rgb(184, 199, 206);
+    for (int x = 0; x < 4; x++) pixel(sx + x, sy, stoneTop);
+  }
+}
+
+void drawTreeLedge(int sx, int sy) {
+  const Color mossTop = rgb(132, 181, 78);
+  for (int x = 0; x < 4; x++) {
+    pixel(sx + x, sy, mixColor(getPixel(sx + x, sy), mossTop, 0.72f));
+  }
+}
+
+void drawBonus(uint8_t bonus, int sx, int sy, SpritePass pass, bool potionRed) {
+  if (bonus == 0 || bonus >= sizeof(wiz3_art::PICKUPS) / sizeof(wiz3_art::PICKUPS[0])) return;
+  drawBitmap(wiz3_art::PICKUPS[bonus], sx, sy, pass, false, false,
+             bonus == 2 && potionRed);
 }
 
 int spriteWidth(uint8_t type) {
@@ -368,17 +461,18 @@ void addMapEntity(uint8_t type, int tx, int ty, int flag) {
   }
 }
 
-void addEffect(uint8_t type, float x, float y) {
+void addPickupEffect(uint8_t bonus, int tx, int ty, bool potionRed) {
   Entity* e = newEntity();
-  if (!e || type >= 23) return;
+  if (!e || bonus == 0 || bonus > 6) return;
   e->transient = true;
   e->hazard = false;
-  e->type = type;
-  e->x = x - (spriteWidth(type) - TILE) * 0.5f;
-  e->y = y - spriteHeight(type) + TILE;
+  e->pickupEffect = bonus;
+  e->x = (float)(tx * TILE);
+  e->y = (float)(ty * TILE);
   e->homeX = e->x;
   e->homeY = e->y;
   e->ttl = 0.7f;
+  e->sourceFlag = potionRed ? 1 : 0;
 }
 
 Cell& cellAt(int tx, int ty) { return level[ty * MAP_W + tx]; }
@@ -468,6 +562,20 @@ void loadLevel(int number) {
     level[i].sprite = raw[o + 6];
     level[i].bonus = raw[o + 7];
     level[i].block = raw[o + 8];
+    level[i].potionRed = false;
+  }
+
+  // Assign colors by potion occurrence, not screen position, so every other
+  // bottle encountered from left to right is red and the sequence stays
+  // stable while the camera moves.
+  bool nextPotionRed = false;
+  for (int x = 0; x < MAP_W; x++) {
+    for (int y = 0; y < MAP_H; y++) {
+      Cell& c = cellAt(x, y);
+      if (c.bonus != 2) continue;
+      c.potionRed = nextPotionRed;
+      nextPotionRed = !nextPotionRed;
+    }
   }
 
   for (int i = 0; i < MAX_ENTITIES; i++) entities[i] = Entity{};
@@ -556,16 +664,15 @@ void collectBonus(Cell& c, int tx, int ty) {
   if (bonus == 0) return;
   c.bonus = 0;
   c.fore = 0;
+  addPickupEffect(bonus, tx, ty, c.potionRed);
   switch (bonus) {
     case 1:
       score += 1000;
-      addEffect(5, tx * TILE + 8.0f, ty * TILE + 8.0f);
       sfxSample(wiz3_assets::SAMPLE_STAR, sizeof(wiz3_assets::SAMPLE_STAR));
       break;
     case 2:
       score += 100;
       potionGauge--;
-      addEffect(8, tx * TILE + 8.0f, ty * TILE + 8.0f);
       sfxSample(wiz3_assets::SAMPLE_BOTTLE, sizeof(wiz3_assets::SAMPLE_BOTTLE));
       if (potionGauge <= 24) {
         potionGauge = 124;
@@ -574,13 +681,11 @@ void collectBonus(Cell& c, int tx, int ty) {
       break;
     case 3:
       lives++;
-      addEffect(10, tx * TILE + 8.0f, ty * TILE + 8.0f);
       sfxSample(wiz3_assets::SAMPLE_EXTRA, sizeof(wiz3_assets::SAMPLE_EXTRA));
       break;
     case 4:
       score += 1000;
       hasKey = true;
-      addEffect(10, tx * TILE + 8.0f, ty * TILE + 8.0f);
       sfxSample(wiz3_assets::SAMPLE_KEY, sizeof(wiz3_assets::SAMPLE_KEY));
       break;
     case 5:
@@ -594,7 +699,6 @@ void collectBonus(Cell& c, int tx, int ty) {
       break;
     case 6:
       invincible = 1600.0f / 60.0f;
-      addEffect(3, tx * TILE + 8.0f, ty * TILE + 8.0f);
       sfxSample(wiz3_assets::SAMPLE_POWERUP, sizeof(wiz3_assets::SAMPLE_POWERUP), 0.85f);
       break;
     default:
@@ -609,11 +713,33 @@ void finishLevel() {
   sfxSample(wiz3_assets::SAMPLE_DOOR, sizeof(wiz3_assets::SAMPLE_DOOR));
 }
 
-void handleInteraction() {
-  int tx = clampi((int)((px + 8) / TILE), 0, MAP_W - 1);
-  int ty = clampi((int)((py + 7) / TILE), 0, MAP_H - 1);
-  Cell& c = cellAt(tx, ty);
-  if (c.bonus == 7) {
+bool findOverlappingBonus(uint8_t bonus, int& outX, int& outY) {
+  if (bonus == 0 || bonus >= sizeof(wiz3_art::PICKUPS) / sizeof(wiz3_art::PICKUPS[0])) {
+    return false;
+  }
+  const int centerX = clampi(floorTile((px + PLAYER_W * 0.5f) / TILE), 0, MAP_W - 1);
+  const int centerY = clampi(floorTile((py + PLAYER_H * 0.5f) / TILE), 0, MAP_H - 1);
+  const wiz3_art::Bitmap& art = wiz3_art::PICKUPS[bonus];
+  for (int x = maxi(0, centerX - 1); x <= mini(MAP_W - 1, centerX + 1); x++) {
+    for (int y = maxi(0, centerY - 2); y <= mini(MAP_H - 1, centerY + 2); y++) {
+      if (cellAt(x, y).bonus != bonus) continue;
+      const float artX = (float)(x * TILE + art.offsetX * 4);
+      const float artY = (float)(y * TILE + art.offsetY * 4);
+      if (!overlapRect(px, py, PLAYER_W, PLAYER_H,
+                       artX, artY, art.width * 4.0f, art.height * 4.0f)) continue;
+      outX = x;
+      outY = y;
+      return true;
+    }
+  }
+  return false;
+}
+
+void handleUpInteraction() {
+  int tx = 0;
+  int ty = 0;
+  if (findOverlappingBonus(7, tx, ty)) {
+    Cell& c = cellAt(tx, ty);
     if ((c.flag & 4) && !hasKey) {
       sfxSample(wiz3_assets::SAMPLE_NOKEY, sizeof(wiz3_assets::SAMPLE_NOKEY));
     } else {
@@ -624,7 +750,7 @@ void handleInteraction() {
       restartLevel = true;
       sfxSample(wiz3_assets::SAMPLE_DOOR, sizeof(wiz3_assets::SAMPLE_DOOR));
     }
-  } else if (c.bonus == 8 && !switchFlag) {
+  } else if (findOverlappingBonus(8, tx, ty) && !switchFlag) {
     switchFlag = true;
     for (int i = 0; i < MAP_W * MAP_H; i++) {
       if (level[i].flag == 16 || level[i].bonus == 8) {
@@ -657,7 +783,10 @@ void updateEntities(float dt) {
     if (e.transient) {
       e.ttl -= dt;
       if (e.ttl <= 0) e.alive = false;
-      else if (e.type < 23 && wiz3_assets::SPRITES[e.type].frames > 0)
+      else if (e.pickupEffect) {
+        e.y -= 32.0f * dt;
+        e.frame = clampi((int)(e.t / 0.0875f), 0, 7);
+      } else if (e.type < 23 && wiz3_assets::SPRITES[e.type].frames > 0)
         e.frame = ((int)e.sim) % wiz3_assets::SPRITES[e.type].frames;
       continue;
     }
@@ -985,7 +1114,9 @@ void movePlayer(float dt) {
     int tm = maxi(floorTile((py + 16) / TILE), 0);
     int tb = maxi(floorTile((py + 23) / TILE), 0);
     if (sideBlockAt(tr, tt) || sideBlockAt(tr, tm) || sideBlockAt(tr, tb)) {
-      nextX = (float)(tr * TILE + 4);
+      // The collision probe is 11 units from the player's origin. Park that
+      // probe one unit before the block instead of moving the player into it.
+      nextX = (float)(tr * TILE - 12);
       vx = 3.0f * ORIGINAL_FPS;
     }
   } else if (dx < 0) {
@@ -1092,33 +1223,39 @@ void checkHazards() {
   }
 }
 
-void drawSprite(uint8_t type, int frame, float wx, float wy, SpritePass pass) {
+void drawSprite(uint8_t type, int frame, float wx, float wy, SpritePass pass,
+                int variant = 0) {
   if (type >= 23) return;
-  const wiz3_assets::SpriteSheet& sheet = wiz3_assets::SPRITES[type];
-  if (sheet.frames == 0) return;
-  frame %= sheet.frames;
-  if (frame < 0) frame += sheet.frames;
   int sx = floori((wx - cameraX) / 4.0f);
   int sy = floori(wy / 4.0f);
-  int base = frame * sheet.width * sheet.height;
-  for (int y = 0; y < sheet.height; y++) {
-    for (int x = 0; x < sheet.width; x++) {
-      uint16_t value = sheet.pixels[base + y * sheet.width + x];
-      if (!value) continue;
-      if (pass == PASS_RIM) {
-        rimNeighbours(sx + x, sy + y);
-      } else {
-        pixel(sx + x, sy + y, spriteColor(value));
-      }
-    }
+  bool flipX = (type == 0 && frame >= 8) ||
+               (type == 1 && frame >= 2) ||
+               (type == 4 && frame < 4) ||
+               (type == 19 && (frame & 2)) ||
+               (type == 21 && frame >= 2);
+  bool flipY = type == 12 && (frame & 2);
+  if ((type == 9 || type == 13 || type == 14 || type == 15 || type == 16) && (frame & 1)) {
+    flipX = !flipX;
   }
+  drawBitmap(wiz3_art::sprite(type, frame), sx, sy, pass, flipX, flipY,
+             type == 8 && (variant & 1));
+}
+
+void drawPickupEffect(const Entity& e, SpritePass pass) {
+  if (e.pickupEffect == 0 || e.pickupEffect > 6) return;
+  const int sx = floori((e.x - cameraX) / 4.0f);
+  const int sy = floori(e.y / 4.0f);
+  const int targetSize = e.frame < 2 ? 5 : e.frame < 4 ? 3 : e.frame < 6 ? 2 : 1;
+  drawShrunkBitmap(wiz3_art::PICKUPS[e.pickupEffect], sx, sy, targetSize, pass,
+                   e.pickupEffect == 2 && (e.sourceFlag & 1));
 }
 
 void drawActors(SpritePass pass) {
   for (int i = 0; i < MAX_ENTITIES; i++) {
     if (entities[i].alive) {
       const Entity& e = entities[i];
-      drawSprite(e.type, e.frame, e.x, e.y, pass);
+      if (e.pickupEffect) drawPickupEffect(e, pass);
+      else drawSprite(e.type, e.frame, e.x, e.y, pass, e.sourceFlag);
     }
   }
   bool hidden = invisibleSpell && input.held(BTN_DOWN);
@@ -1132,7 +1269,8 @@ void drawBonuses(int first, int last, SpritePass pass) {
   for (int x = first; x <= last; x++) {
     int sx = floori(((float)(x * TILE) - cameraX) / 4.0f);
     for (int y = 0; y < MAP_H; y++) {
-      drawBonus(cellAt(x, y).bonus, sx, y * 4, pass);
+      const Cell& c = cellAt(x, y);
+      drawBonus(c.bonus, sx, y * 4, pass, c.potionRed);
     }
   }
 }
@@ -1148,6 +1286,14 @@ void drawWorld() {
       Cell& c = cellAt(x, y);
       drawTile(c.back, sx, sy, false);
       if (c.fore) drawTile(c.fore, sx, sy, true);
+      if (isStoneCollision(c)) {
+        const bool exposedTop = y == 0 || (cellAt(x, y - 1).block & 3) == 0;
+        drawStoneCollision(sx, sy, exposedTop);
+      }
+      if (isTreeLedgeCollision(c) &&
+          (y == 0 || (cellAt(x, y - 1).block & 3) == 0)) {
+        drawTreeLedge(sx, sy);
+      }
     }
   }
 
@@ -1349,7 +1495,7 @@ void update(float dt) {
     return;
   }
   checkBonuses();
-  if (input.justDown(BTN_UP)) handleInteraction();
+  if (input.justDown(BTN_UP)) handleUpInteraction();
   if (restartLevel) {
     restartLevel = false;
     loadLevel(currentLevel);

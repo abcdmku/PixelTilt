@@ -118,12 +118,13 @@ localStorage.
 Twenty-two games ship in the repo. **Tilt Maze** rolls a ball to a goal past
 holes, **Snake** steers on the dominant tilt axis, **Breakout** maps tilt
 straight to paddle position, and the Sand II family below shares one runtime.
-**WIZ3** is the complete 19-level port of the original Java runtime: its level
-records, tile/sprite sheets, and original sound clips live in `games/wiz3/`
-and `assets/sounds/wiz3/`. Tilt moves, CLICK jumps, UP operates doors and
-levers, and DOWN activates the earned invisibility spell. Regenerate assets
-with `python tools/extract-wiz3-assets.py --jar wiz3-original.jar` from the
-creator-hosted JAR (not the reduced HTML remake).
+**WIZ3** is the complete 19-level port of the original Java runtime. Its level
+records, source tile and sprite sheets, and original sound clips live in
+`games/wiz3/` and `assets/sounds/wiz3/`. The 64x64 gameplay art is hand-drawn
+at final resolution in `games/wiz3/art.h`. Tilt moves, CLICK jumps, UP operates
+doors and levers, and DOWN activates the earned invisibility spell. Regenerate
+the source assets with `python tools/extract-wiz3-assets.py --jar
+wiz3-original.jar` from the creator-hosted JAR, not the reduced HTML remake.
 
 ### Sand II family
 

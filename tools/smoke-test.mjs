@@ -243,6 +243,38 @@ check(
   wiz3Source.includes("blockAt(tx, ty, 1)") && wiz3Source.includes("blockAt(tx, ty, 3)"),
 );
 check(
+  "WIZ3 right-wall collision stops before the block",
+  wiz3Source.includes("nextX = (float)(tr * TILE - 12);") &&
+    !wiz3Source.includes("nextX = (float)(tr * TILE + 4);"),
+);
+check(
+  "WIZ3 collected items retain their art and rise while shrinking",
+  wiz3Source.includes("c.potionRed = nextPotionRed;") &&
+    wiz3Source.includes("nextPotionRed = !nextPotionRed;") &&
+    wiz3Source.includes("addPickupEffect(bonus, tx, ty, c.potionRed);") &&
+    wiz3Source.includes("drawShrunkBitmap(wiz3_art::PICKUPS[e.pickupEffect]") &&
+    wiz3Source.includes("e.y -= 32.0f * dt;") &&
+    wiz3Source.includes("e.frame = clampi((int)(e.t / 0.0875f), 0, 7);"),
+);
+check(
+  "WIZ3 enters overlapping doors with the UP key",
+  wiz3Source.includes("findOverlappingBonus(7, tx, ty)") &&
+    wiz3Source.includes("if (input.justDown(BTN_UP)) handleUpInteraction();") &&
+    !wiz3Source.includes("if (input.justDown(BTN_CLICK)) handleUpInteraction();"),
+);
+check(
+  "WIZ3 distinguishes collision-backed stone from decorative stone",
+  wiz3Source.includes("c.fore == 0 && (c.block & 3) != 0 && c.back >= 32 && c.back <= 34") &&
+    wiz3Source.includes("drawStoneCollision(sx, sy, exposedTop);") &&
+    !wiz3Source.includes("surfaceCap"),
+);
+check(
+  "WIZ3 marks only collision-backed tree ledges as standable",
+  wiz3Source.includes("(c.block & 3) != 0 && c.fore >= 97 && c.fore <= 103") &&
+    wiz3Source.includes("drawTreeLedge(sx, sy);") &&
+    wiz3Source.includes("const Color mossTop = rgb(132, 181, 78);"),
+);
+check(
   "WIZ3 embeds original sample banks as PTA",
   wiz3Source.includes("sfxSample(wiz3_assets::SAMPLE_JUMP, sizeof(wiz3_assets::SAMPLE_JUMP))") &&
     readFileSync(join(root, "games", "wiz3", "assets.h"), "utf8").includes("static const uint8_t SAMPLE_JUMP[]"),
