@@ -14,8 +14,12 @@ const MUSIC_SCALE = 2;
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
 let musicBus: GainNode | null = null;
+let musicAnalyser: AnalyserNode | null = null;
 let sfxLevel = 0.8;
 let musicLevel = 0.6;
+let analysisBins: Uint8Array | null = null;
+let analysisBassFloor = 0;
+let analysisBeat = 0;
 
 type UnlockListener = () => void;
 const unlockListeners = new Set<UnlockListener>();
@@ -50,7 +54,14 @@ function ensureContext(): AudioContext | null {
     limiter.ratio.value = 12;
     limiter.attack.value = 0.002;
     limiter.release.value = 0.25;
-    musicBus.connect(limiter);
+    musicAnalyser = ctx.createAnalyser();
+    musicAnalyser.fftSize = 1024;
+    musicAnalyser.smoothingTimeConstant = 0.58;
+    musicAnalyser.minDecibels = -88;
+    musicAnalyser.maxDecibels = -12;
+    analysisBins = new Uint8Array(musicAnalyser.frequencyBinCount);
+    musicBus.connect(musicAnalyser);
+    musicAnalyser.connect(limiter);
     limiter.connect(ctx.destination);
   }
   if (ctx.state === "suspended") {
@@ -171,4 +182,40 @@ export function playBuffer(
 /** The music bus, for the sequencer to hang scheduled oscillators on. */
 export function musicBusNode(): GainNode | null {
   return musicBus;
+}
+
+export interface MusicAnalysisFrame {
+  level: number;
+  bass: number;
+  mid: number;
+  high: number;
+  beat: number;
+}
+
+/** Sample the audible music bus. Frequency ranges stay track-agnostic, so
+ * converted PTA songs drive the same game visuals as the built-in synths. */
+export function sampleMusicAnalysis(): MusicAnalysisFrame {
+  if (!musicAnalyser || !analysisBins || !ctx || ctx.state !== "running") {
+    analysisBeat *= 0.72;
+    return { level: 0, bass: 0, mid: 0, high: 0, beat: analysisBeat };
+  }
+  const bins = analysisBins;
+  musicAnalyser.getByteFrequencyData(bins);
+  const hzPerBin = ctx.sampleRate / musicAnalyser.fftSize;
+  const band = (lo: number, hi: number) => {
+    const first = Math.max(1, Math.floor(lo / hzPerBin));
+    const last = Math.min(bins.length - 1, Math.ceil(hi / hzPerBin));
+    let sum = 0;
+    for (let i = first; i <= last; i++) sum += bins[i];
+    return last >= first ? sum / (last - first + 1) / 255 : 0;
+  };
+  const bass = Math.min(1, band(35, 190) * 1.22);
+  const mid = Math.min(1, band(190, 1800) * 1.14);
+  const high = Math.min(1, band(1800, 7600) * 1.18);
+  const level = Math.min(1, bass * 0.42 + mid * 0.38 + high * 0.34);
+
+  const onset = bass > 0.16 && bass > analysisBassFloor + 0.075;
+  analysisBassFloor += (bass - analysisBassFloor) * (bass > analysisBassFloor ? 0.12 : 0.025);
+  analysisBeat = onset ? 1 : analysisBeat * 0.72;
+  return { level, bass, mid, high, beat: analysisBeat };
 }

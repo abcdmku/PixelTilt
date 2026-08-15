@@ -282,7 +282,13 @@ The API lives in [`core/include/pixeltilt/`](core/include/pixeltilt):
   `music(MUS_CHILL/ACTION/TENSE)` requests background music by mood. The core
   only records these as data events, and each platform host renders them: Web
   Audio in the emulator, and an ES8311 I2S task on the device that ports the
-  same synth math.
+  same synth math. `musicAnalysis` reports normalized level, bass, mid, high,
+  and beat values from that rendered music. It follows built-in tracks and
+  later `.pta` replacements on both hosts. RAVE uses its own `rave.pta` track;
+  UP/DOWN cycles its 20 scenes, while tilt, spin, and XYZ acceleration reshape
+  the visuals. A short CLICK cycles Mechanical, Techno Style, and Dodgems; holding
+  CLICK still opens the device menu. Four-beat phrases change a scene's layout
+  and motion, while mid/high stabs trigger one accent chosen for that design.
 - **`storage.h`** takes `submitScore(value)` when a run ends, and the engine
   keeps a persistent top 3 for that game. It returns 0 for a new best, which
   is handy for a "NEW BEST!" flash. Points are the default. Register with

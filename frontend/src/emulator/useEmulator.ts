@@ -13,6 +13,7 @@ import {
   audioUnlocked,
   installAudioUnlock,
   playPatch,
+  sampleMusicAnalysis,
   setMusicVolume,
   setSfxVolume,
 } from "../audio/engine";
@@ -675,6 +676,14 @@ export function useEmulator(): EmulatorState & EmulatorControls {
           wheelNeedRelease.current = true;
         }
         m.setAccel(ax, ay, az);
+        const musicFrame = sampleMusicAnalysis();
+        m.setMusicAnalysis(
+          musicFrame.level,
+          musicFrame.bass,
+          musicFrame.mid,
+          musicFrame.high,
+          musicFrame.beat,
+        );
         // The physics field is tilt + shake in one vector (raw specific
         // force, like the hardware IMU): full arrow press = vertical
         // (1 g), and Space/devicemotion noise rides on top.

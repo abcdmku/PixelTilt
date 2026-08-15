@@ -36,6 +36,9 @@ function bytesEqual(a, b) {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+function bytesDiffer(a, b) {
+  return !bytesEqual(a, b);
+}
 function saveSnapshot() {
   return new Uint8Array(e.memory.buffer, e.pt_save_ptr(), e.pt_save_size()).slice();
 }
@@ -46,6 +49,14 @@ function fnv1a(text) {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash || 1;
+}
+function frameHash(bytes) {
+  let hash = 0x811c9dc5;
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
 }
 const BTN_UP = 1, BTN_CLICK = 2, BTN_DOWN = 4;
 const tick = (tx = 0, ty = 0, buttons = 0, spin = 0) => e.pt_tick(1 / 60, tx, ty, spin, buttons);
@@ -260,6 +271,123 @@ tick();
 check("menu draws pixels", fbLitPixels() > 50);
 check("starts in menu", e.pt_current_game() === -1);
 check("menu requests the MENU music track", e.pt_music_track() === 1);
+
+// RAVE consumes host-supplied analysis of the actual music mix and all six
+// motion channels. Rebuild an identical seeded frame for each input so this
+// catches a disconnected analyser or an accidentally ignored DOF.
+const rave = ids.indexOf("rave");
+check("RAVE is registered as an unscored light toy", rave >= 0 && !gameHasScores[rave]);
+if (rave >= 0) {
+  e.pt_init(0x52415645);
+  e.pt_launch(rave);
+  check("RAVE requests its own music track", e.pt_music_track() === 5);
+  const ravePtas = ["rave.pta", "rave_acid.pta", "rave_dodgems.pta"].map((name) =>
+    readFileSync(join(root, "assets", "music", name))
+  );
+  check(
+    "RAVE bundles three valid PTA recordings",
+    ravePtas.every((pta) => pta.length > 16 && pta.subarray(0, 4).toString() === "PTA1"),
+  );
+  tick(0, 0, BTN_CLICK); tick();
+  check("RAVE short click selects TECHNO STYLE", e.pt_music_track() === 6);
+  tick(0, 0, BTN_CLICK); tick();
+  check("RAVE short click selects DODGEMS", e.pt_music_track() === 7);
+  tick(0, 0, BTN_CLICK); tick();
+  check("RAVE song selection wraps to MECHANICAL", e.pt_music_track() === 5);
+  for (let frame = 0; frame < 32; frame++) tick(0, 0, BTN_CLICK);
+  tick();
+  check("RAVE held click does not change songs", e.pt_music_track() === 5);
+  const raveFrame = ({
+    analysis = [0.58, 0.76, 0.44, 0.68, 0.35],
+    tx = 0,
+    ty = 0,
+    spin = 0,
+    ax = 0,
+    ay = 0,
+    az = 0,
+  } = {}) => {
+    e.pt_init(0x52415645);
+    e.pt_launch(rave);
+    for (let frame = 0; frame < 48; frame++) {
+      e.pt_music_analysis(...analysis);
+      e.pt_accel(ax, ay, az);
+      e.pt_gravity(tx + ax, ty + ay);
+      tick(tx, ty, 0, spin);
+    }
+    return framebufferSnapshot();
+  };
+  const base = raveFrame();
+  check(
+    "RAVE reacts to live music analysis",
+    bytesDiffer(base, raveFrame({ analysis: [0, 0, 0, 0, 0] })),
+  );
+  const dofFrames = [
+    raveFrame({ tx: 0.72 }),
+    raveFrame({ ty: -0.72 }),
+    raveFrame({ spin: 2.8 }),
+    raveFrame({ ax: 0.85 }),
+    raveFrame({ ay: -0.85 }),
+    raveFrame({ az: 0.9 }),
+  ];
+  check(
+    "RAVE reacts to tilt X/Y, spin, and acceleration X/Y/Z",
+    dofFrames.every((frame) => bytesDiffer(base, frame)),
+  );
+
+  const styleFrames = [];
+  for (let style = 0; style < 20; style++) {
+    e.pt_init(0x52415645);
+    e.pt_launch(rave);
+    for (let step = 0; step < style; step++) {
+      tick(0, 0, BTN_DOWN);
+      tick();
+    }
+    for (let frame = 0; frame < 72; frame++) {
+      e.pt_music_analysis(0.62, 0.78, 0.49, 0.67, frame % 18 === 0 ? 1 : 0);
+      tick(0.18, -0.12, 0, 0.4);
+    }
+    styleFrames.push(framebufferSnapshot());
+  }
+  check(
+    "RAVE renders 20 distinct UP/DOWN styles",
+    new Set(styleFrames.map(frameHash)).size === 20,
+  );
+
+  // Each named style must mutate its structure for kicks and sharp mid/high
+  // stabs. These patterns end at the same simulation time and use the same
+  // seed, so different hashes come from the audio event system.
+  const reactiveVariantFrame = (style, pattern) => {
+    e.pt_init(0x52415645);
+    e.pt_launch(rave);
+    for (let step = 0; step < style; step++) {
+      tick(0, 0, BTN_DOWN);
+      tick();
+    }
+    for (let frame = 0; frame < 84; frame++) {
+      let analysis = [0.34, 0.38, 0.29, 0.22, 0];
+      if (pattern === "beats" && frame % 16 === 0) {
+        analysis = [0.85, 0.98, 0.42, 0.28, 1];
+      } else if (pattern === "stabs" && frame % 13 === 4) {
+        analysis = [0.78, 0.26, 0.98, 1, 0];
+      }
+      e.pt_music_analysis(...analysis);
+      tick(0.18, -0.12, 0, 0.4);
+    }
+    return frameHash(framebufferSnapshot());
+  };
+  const everyStyleMutates = Array.from({ length: 20 }, (_, style) => {
+    const variants = ["steady", "beats", "stabs"].map((pattern) =>
+      reactiveVariantFrame(style, pattern)
+    );
+    return new Set(variants).size === 3;
+  }).every(Boolean);
+  check(
+    "RAVE gives every style separate steady, beat, and stab variants",
+    everyStyleMutates,
+  );
+}
+e.pt_init(1234);
+tick();
 
 // The SFX patch library is data the host reads straight out of linear memory.
 check("sfx library has styles and events", e.pt_sfx_style_count() === 4 && e.pt_sfx_count() === 12);

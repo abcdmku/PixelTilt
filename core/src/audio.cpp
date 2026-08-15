@@ -133,6 +133,9 @@ const MusicDef MUSIC_DEFS[MUS_COUNT] = {
     {72.0f, 2, 2, CHILL_CH},     // MUS_CHILL
     {140.0f, 4, 2, ACTION_CH},   // MUS_ACTION
     {120.0f, 4, 2, TENSE_CH},    // MUS_TENSE
+    {0, 0, 0, nullptr},          // MUS_RAVE (PTA-only)
+    {0, 0, 0, nullptr},          // MUS_RAVE_ACID (PTA-only)
+    {0, 0, 0, nullptr},          // MUS_RAVE_DODGEMS (PTA-only)
 };
 
 void push(const SfxPatch& p) {
@@ -143,6 +146,8 @@ void push(const SfxPatch& p) {
 }
 
 }  // namespace
+
+volatile MusicAnalysis musicAnalysis = {0, 0, 0, 0, 0};
 
 void setSfxStyle(SfxStyle s) {
   if (s >= 0 && s < STYLE_COUNT) currentStyle = s;
@@ -180,6 +185,14 @@ void music(MusicTrack t) {
 
 MusicTrack musicTrack() { return track; }
 
+void setMusicAnalysis(float level, float bass, float mid, float high, float beat) {
+  musicAnalysis.level = level < 0 ? 0 : (level > 1 ? 1 : level);
+  musicAnalysis.bass = bass < 0 ? 0 : (bass > 1 ? 1 : bass);
+  musicAnalysis.mid = mid < 0 ? 0 : (mid > 1 ? 1 : mid);
+  musicAnalysis.high = high < 0 ? 0 : (high > 1 ? 1 : high);
+  musicAnalysis.beat = beat < 0 ? 0 : (beat > 1 ? 1 : beat);
+}
+
 const SfxPatch& sfxPatch(SfxStyle style, SfxId id) {
   int s = (style >= 0 && style < STYLE_COUNT) ? style : 0;
   int i = (id >= 0 && id < SFX_COUNT) ? id : 0;
@@ -208,6 +221,7 @@ void audioReset() {
   head = 0;
   track = MUS_NONE;
   trackSerial = 0;
+  setMusicAnalysis(0, 0, 0, 0, 0);
   for (int i = 0; i < SFX_RING_CAP; i++) ring[i].serial = 0;
 }
 

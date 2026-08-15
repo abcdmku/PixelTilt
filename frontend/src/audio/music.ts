@@ -7,7 +7,18 @@ import { ptaToAudioBuffer } from "./pta";
 
 // Mirrors pt::MusicTrack in core/include/pixeltilt/audio.h.
 export const MUS_NONE = 0;
-export const MUSIC_TRACK_NAMES = ["NONE", "MENU", "CHILL", "ACTION", "TENSE"];
+export const MUSIC_TRACK_NAMES = [
+  "NONE", "MENU", "CHILL", "ACTION", "TENSE",
+  "RAVE", "TECHNO STYLE", "DODGEMS",
+];
+
+// Vite turns this source asset into a hashed production URL. Unlike Audio Lab
+// overrides, the RAVE recording ships with every emulator build.
+const BUNDLED_PTA: Record<number, string> = {
+  5: new URL("../../../assets/music/rave.pta", import.meta.url).href,
+  6: new URL("../../../assets/music/rave_acid.pta", import.meta.url).href,
+  7: new URL("../../../assets/music/rave_dodgems.pta", import.meta.url).href,
+};
 
 const OVERRIDE_KEY = (track: number) => `pixeltilt.music.${track}`;
 
@@ -208,6 +219,7 @@ let currentTrack = MUS_NONE;
 let timer: number | null = null;
 let stopPta: (() => void) | null = null;
 let live: { osc: OscillatorNode; gain: GainNode }[] = [];
+let loadSerial = 0;
 
 function scheduleNote(ev: NoteEvent, when: number) {
   const ctx = audioContext();
@@ -262,6 +274,7 @@ function startSequencer(def: TrackDef) {
 }
 
 export function stopMusic() {
+  loadSerial++;
   if (timer !== null) {
     clearInterval(timer);
     timer = null;
@@ -303,6 +316,29 @@ export function setMusicTrack(track: number) {
     } catch {
       // corrupt override — fall through to the built-in tune
     }
+  }
+  const bundled = BUNDLED_PTA[track];
+  if (bundled) {
+    const requestSerial = loadSerial;
+    void fetch(bundled)
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then((buffer) => {
+        if (currentTrack !== track || loadSerial !== requestSerial) return;
+        const liveCtx = audioContext();
+        if (!liveCtx) return;
+        stopPta = playBuffer(ptaToAudioBuffer(liveCtx, new Uint8Array(buffer)), {
+          bus: "music",
+          loop: true,
+          gain: 0.8,
+        });
+      })
+      .catch(() => {
+        // A missing packaged asset leaves a PTA-only track silent.
+      });
+    return;
   }
   const def = TRACKS[track];
   if (def) startSequencer(def);

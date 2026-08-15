@@ -13,6 +13,7 @@ extern const pt::Game pt_game_lander;
 extern const pt::Game pt_game_meteors;
 extern const pt::Game pt_game_pong;
 extern const pt::Game pt_game_puzzles;
+extern const pt::Game pt_game_rave;
 extern const pt::Game pt_game_sand;
 extern const pt::Game pt_game_sand2;
 extern const pt::Game pt_game_sand2_ferro;
@@ -39,6 +40,7 @@ const Game* const GAME_LIST[] = {
     &pt_game_meteors,
     &pt_game_pong,
     &pt_game_puzzles,
+    &pt_game_rave,
     &pt_game_sand,
     &pt_game_sand2,
     &pt_game_sand2_ferro,
@@ -53,7 +55,7 @@ const Game* const GAME_LIST[] = {
     &pt_game_tunnel,
     &pt_game_wiz3,
 };
-const int GAME_COUNT = 23;
+const int GAME_COUNT = 24;
 const int SCORED_GAME_COUNT = 16;
 static_assert(16 <= SCORE_GAME_CAPACITY,
               "scored game registry exceeds persistent score capacity");
