@@ -333,7 +333,7 @@ body {
 /* frame dark: black printed louvers with imperfect clear-filament diffusers */
 .ui-frame-dark {
   --depth: 24px;
-  --bezel: 11px;
+  --bezel: 18px;
 }
 
 .ui-frame-dark .panel-grid,
@@ -347,8 +347,8 @@ body {
     radial-gradient(ellipse at 46% 18%, rgba(255, 255, 255, 0.018), transparent 48%),
     repeating-linear-gradient(
       3deg,
-      rgba(255, 255, 255, 0.012) 0 1px,
-      transparent 1px 4px
+      rgba(255, 255, 255, 0.01) 0 0.35px,
+      transparent 0.35px 1.55px
     ),
     linear-gradient(155deg, #0c0d0d, #020303 68%, #060707);
   border: 1px solid #010202;
@@ -371,8 +371,8 @@ body {
   background:
     repeating-linear-gradient(
       0deg,
-      rgba(255, 255, 255, 0.018) 0 1px,
-      transparent 1px 3px
+      rgba(255, 255, 255, 0.012) 0 0.4px,
+      transparent 0.4px 1.7px
     ),
     linear-gradient(160deg, #151717, #050606 72%);
 }

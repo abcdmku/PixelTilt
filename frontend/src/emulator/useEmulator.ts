@@ -453,17 +453,14 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     };
     const body = makeBuffer();
     const core = makeBuffer();
-    const fringe = makeBuffer();
     const bodyImage = body.ctx.createImageData(SCREEN_W, SCREEN_H);
     const coreImage = core.ctx.createImageData(SCREEN_W, SCREEN_H);
-    const fringeImage = fringe.ctx.createImageData(SCREEN_W, SCREEN_H);
     // Scratch at panel resolution: the core layer needs its own masking pass
     // before it can be added on top of the body layer.
     const scratch = document.createElement("canvas");
     let bodyMask: HTMLCanvasElement | null = null;
     let coreMask: HTMLCanvasElement | null = null;
     let spillMask: HTMLCanvasElement | null = null;
-    let fringeMask: HTMLCanvasElement | null = null;
     let lastMaskStyle: PixelStyle | null = null;
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
@@ -777,34 +774,21 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       const coreWhite = printedStyle ? 0.62 : LED_CORE_WHITE;
       const bp = bodyImage.data;
       const cp = coreImage.data;
-      const fp = fringeImage.data;
       for (let i = 0, j = 0; i < fb.length; i += 3, j += 4) {
         let r = emit[fb[i]];
         let g = emit[fb[i + 1]];
         let b = emit[fb[i + 2]];
-        let opticalSplit = 0;
         // Narrow-band primaries: pull the smallest channel down and rescale
         // so the brightest is unchanged — the panel's colors are purer than
         // sRGB can express, and washed-out mixes are the tell.
         const lo = r < g ? (r < b ? r : b) : g < b ? g : b;
         const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
-        if (printedStyle && hi > 0) {
-          const middle = r + g + b - hi - lo;
-          opticalSplit = Math.max(0, (middle / hi - 0.18) / 0.82);
-        }
         if (lo > 0) {
           const sub = lo * LED_CHROMA;
           const k = hi / (hi - sub);
           r = (r - sub) * k;
           g = (g - sub) * k;
           b = (b - sub) * k;
-        }
-        if (opticalSplit > 0) {
-          // Clear filament reads cooler through the lower face of mixed-color
-          // pixels. A separate warm band restores the red die along the top.
-          r *= 1 - opticalSplit * 0.42;
-          g *= 1 - opticalSplit * 0.22;
-          b *= 1 - opticalSplit * 0.04;
         }
         bp[j] = r;
         bp[j + 1] = g;
@@ -819,14 +803,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         cp[j + 1] = g + (255 - g) * w;
         cp[j + 2] = b + (255 - b) * w;
         cp[j + 3] = h;
-        fp[j] = 255;
-        fp[j + 1] = 42;
-        fp[j + 2] = 8;
-        fp[j + 3] = Math.round(h * opticalSplit * 0.82);
       }
       body.ctx.putImageData(bodyImage, 0, 0);
       core.ctx.putImageData(coreImage, 0, 0);
-      fringe.ctx.putImageData(fringeImage, 0, 0);
 
         const size = main.width;
         const ctx = main.getContext("2d")!;
@@ -836,18 +815,15 @@ export function useEmulator(): EmulatorState & EmulatorControls {
             bodyMask = makeSquareMask(size, SCREEN_W, 0.82);
             coreMask = null;
             spillMask = null;
-            fringeMask = null;
           } else if (printedStyle) {
             const printedMasks = makePrintedPixelMasks(size, SCREEN_W);
             bodyMask = printedMasks.body;
             coreMask = printedMasks.core;
             spillMask = printedMasks.spill;
-            fringeMask = printedMasks.fringe;
           } else {
             bodyMask = makeLedMask(size, SCREEN_W, 0.22, 0.44);
             coreMask = makeLedMask(size, SCREEN_W, 0.06, 0.26);
             spillMask = null;
-            fringeMask = null;
           }
           scratch.width = scratch.height = size;
         }
@@ -870,18 +846,6 @@ export function useEmulator(): EmulatorState & EmulatorControls {
           ctx.globalAlpha = 0.2;
           ctx.drawImage(scratch, 0, 0);
           ctx.globalAlpha = 1;
-          ctx.globalCompositeOperation = "source-over";
-        }
-        if (fringeMask) {
-          const sctx = scratch.getContext("2d")!;
-          sctx.globalCompositeOperation = "source-over";
-          sctx.clearRect(0, 0, size, size);
-          sctx.imageSmoothingEnabled = false;
-          sctx.drawImage(fringe.canvas, 0, 0, size, size);
-          sctx.globalCompositeOperation = "destination-in";
-          sctx.drawImage(fringeMask, 0, 0);
-          ctx.globalCompositeOperation = "lighter";
-          ctx.drawImage(scratch, 0, 0);
           ctx.globalCompositeOperation = "source-over";
         }
         if (coreMask) {

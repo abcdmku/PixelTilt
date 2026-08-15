@@ -158,21 +158,17 @@ export function makePrintedPixelMasks(
   body: HTMLCanvasElement;
   core: HTMLCanvasElement;
   spill: HTMLCanvasElement;
-  fringe: HTMLCanvasElement;
 } {
   const body = document.createElement("canvas");
   const core = document.createElement("canvas");
   const spill = document.createElement("canvas");
-  const fringe = document.createElement("canvas");
   body.width = body.height = size;
   core.width = core.height = size;
   spill.width = spill.height = size;
-  fringe.width = fringe.height = size;
 
   const bodyCtx = body.getContext("2d")!;
   const coreCtx = core.getContext("2d")!;
   const spillCtx = spill.getContext("2d")!;
-  const fringeCtx = fringe.getContext("2d")!;
   const cell = size / cells;
 
   for (let y = 0; y < cells; y++) {
@@ -194,16 +190,7 @@ export function makePrintedPixelMasks(
       bodyCtx.roundRect(-width / 2, -height / 2, width, height, radius);
       bodyCtx.clip();
 
-      const face = bodyCtx.createLinearGradient(
-        -width * 0.42,
-        -height * 0.38,
-        width * 0.42,
-        height * 0.38,
-      );
-      face.addColorStop(0, `rgba(255,255,255,${transmission * 0.88})`);
-      face.addColorStop(0.52, `rgba(255,255,255,${transmission})`);
-      face.addColorStop(1, `rgba(255,255,255,${transmission * 0.82})`);
-      bodyCtx.fillStyle = face;
+      bodyCtx.fillStyle = `rgba(255,255,255,${transmission})`;
       bodyCtx.fillRect(-width / 2, -height / 2, width, height);
 
       // The close-up of the real print has nested, roughly square tool paths.
@@ -321,44 +308,15 @@ export function makePrintedPixelMasks(
         spillRadius * 2,
       );
 
-      // Mixed colors reveal the red die as a broad band along the cap's upper
-      // edge. The line wanders slightly from pixel to pixel, like uneven clear
-      // filament layers rather than a perfectly aligned optical element.
-      fringeCtx.save();
-      fringeCtx.translate(cx, cy);
-      fringeCtx.rotate(turn);
-      fringeCtx.beginPath();
-      fringeCtx.roundRect(-width / 2, -height / 2, width, height, radius);
-      fringeCtx.clip();
-      const fringeTilt = (cellNoise(x, y, 503) - 0.5) * width * 0.18;
-      const fringeShift = (cellNoise(x, y, 521) - 0.5) * height * 0.15;
-      const fringeStrength = 0.72 + cellNoise(x, y, 541) * 0.28;
-      const fringeGlow = fringeCtx.createLinearGradient(
-        fringeTilt,
-        -height * 0.58 + fringeShift,
-        -fringeTilt,
-        height * 0.48 + fringeShift,
-      );
-      fringeGlow.addColorStop(0, `rgba(255,255,255,${fringeStrength})`);
-      fringeGlow.addColorStop(0.4, `rgba(255,255,255,${fringeStrength * 0.94})`);
-      fringeGlow.addColorStop(0.53, `rgba(255,255,255,${fringeStrength * 0.72})`);
-      fringeGlow.addColorStop(0.66, `rgba(255,255,255,${fringeStrength * 0.08})`);
-      fringeGlow.addColorStop(1, "rgba(255,255,255,0)");
-      fringeCtx.fillStyle = fringeGlow;
-      fringeCtx.fillRect(-width / 2, -height / 2, width, height);
-      fringeCtx.restore();
     }
   }
 
-  // Keep the color split inside the same grooves as the diffuser body. Keep
-  // the bloom mostly outside the cap so it lights the printed divider walls.
-  fringeCtx.globalCompositeOperation = "destination-in";
-  fringeCtx.drawImage(body, 0, 0);
+  // Keep the bloom mostly outside the cap so it lights the printed walls.
   spillCtx.globalCompositeOperation = "destination-out";
   spillCtx.globalAlpha = 0.82;
   spillCtx.drawImage(body, 0, 0);
 
-  return { body, core, spill, fringe };
+  return { body, core, spill };
 }
 
 export function makeLedMask(
