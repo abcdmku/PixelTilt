@@ -11,7 +11,13 @@ export function Bench(props: { ui: VariantId; onUi(id: VariantId): void }) {
   const emu = useEmulator();
 
   useEffect(() => {
-    emu.setPixelStyle(props.ui === "frame" ? "squares" : "dots");
+    const style =
+      props.ui === "frame-dark"
+        ? "printed"
+        : props.ui === "frame"
+          ? "squares"
+          : "dots";
+    emu.setPixelStyle(style);
   }, [props.ui, emu.setPixelStyle]);
 
   if (emu.error) {
