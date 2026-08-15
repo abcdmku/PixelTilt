@@ -8,7 +8,15 @@ import {
   SCREEN_H,
   SCREEN_W,
 } from "./wasm";
-import { LED_CHROMA, LED_CORE_WHITE, makeLedMask, makeSquareMask, panelTables } from "./panel";
+import {
+  LED_CHROMA,
+  LED_CORE_WHITE,
+  makeLedMask,
+  makePrintedPixelMasks,
+  makeSquareMask,
+  panelTables,
+  type PixelStyle,
+} from "./panel";
 import {
   audioUnlocked,
   installAudioUnlock,
@@ -93,6 +101,8 @@ const DEADLINE_EPSILON_MS = 0.5;
 // Settings + high scores persist in localStorage, mirroring the device's NVS.
 const SAVE_KEY = "pixeltilt.save";
 const VOL_KEY = "pixeltilt.vol";
+const DEFAULT_CANVAS_SIZE = 640;
+const PRINTED_CANVAS_SIZE = 1024;
 
 function readHostVolume(): { sfx: number | null; music: number | null } {
   try {
@@ -193,8 +203,8 @@ export interface EmulatorControls {
   setHostMusicVolume(percent: number): void;
   /** Toggle ESP32 performance emulation. */
   setEsp32Perf(on: boolean): void;
-  /** `squares` is the frame variant: hard pixels, no LED-dot mask. */
-  setPixelStyle(style: "dots" | "squares"): void;
+  /** Physical treatment used to shape each simulated emitter. */
+  setPixelStyle(style: PixelStyle): void;
   /** Request sensor permission and use every phone DOF the browser exposes. */
   setPhoneDofsEnabled(on: boolean): Promise<void>;
 }
@@ -259,12 +269,16 @@ export function useEmulator(): EmulatorState & EmulatorControls {
   const renderDirty = useRef(true);
   const audioDirty = useRef(true);
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const pixelStyle = useRef<"dots" | "squares">("dots");
+  const pixelStyle = useRef<PixelStyle>("dots");
 
   const registerCanvas = useCallback((main: HTMLCanvasElement | null) => {
     if (canvas.current === main) return;
     canvas.current = main;
-    if (main) renderDirty.current = true;
+    if (main) {
+      const size = pixelStyle.current === "printed" ? PRINTED_CANVAS_SIZE : DEFAULT_CANVAS_SIZE;
+      main.width = main.height = size;
+      renderDirty.current = true;
+    }
   }, []);
 
   const launch = useCallback((i: number) => {
@@ -345,9 +359,14 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     setMusicVol(n);
   }, []);
 
-  const setPixelStyle = useCallback((style: "dots" | "squares") => {
+  const setPixelStyle = useCallback((style: PixelStyle) => {
     if (pixelStyle.current === style) return;
     pixelStyle.current = style;
+    const main = canvas.current;
+    if (main) {
+      const size = style === "printed" ? PRINTED_CANVAS_SIZE : DEFAULT_CANVAS_SIZE;
+      main.width = main.height = size;
+    }
     renderDirty.current = true;
   }, []);
 
@@ -441,7 +460,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
     const scratch = document.createElement("canvas");
     let bodyMask: HTMLCanvasElement | null = null;
     let coreMask: HTMLCanvasElement | null = null;
-    let lastMaskStyle: "dots" | "squares" | null = null;
+    let spillMask: HTMLCanvasElement | null = null;
+    let lastMaskStyle: PixelStyle | null = null;
 
     const onKey = (down: boolean) => (ev: KeyboardEvent) => {
       if (ev.repeat) return;
@@ -749,7 +769,9 @@ export function useEmulator(): EmulatorState & EmulatorControls {
       // crush to black here exactly like they do on the hardware.
       const fb = m.framebuffer();
       const { emit, hot } = panelTables(m.brightness());
-      const square = pixelStyle.current === "squares";
+      const hardSquare = pixelStyle.current === "squares";
+      const printedStyle = pixelStyle.current === "printed";
+      const coreWhite = printedStyle ? 0.62 : LED_CORE_WHITE;
       const bp = bodyImage.data;
       const cp = coreImage.data;
       for (let i = 0, j = 0; i < fb.length; i += 3, j += 4) {
@@ -760,8 +782,8 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         // so the brightest is unchanged — the panel's colors are purer than
         // sRGB can express, and washed-out mixes are the tell.
         const lo = r < g ? (r < b ? r : b) : g < b ? g : b;
+        const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
         if (lo > 0) {
-          const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
           const sub = lo * LED_CHROMA;
           const k = hi / (hi - sub);
           r = (r - sub) * k;
@@ -776,7 +798,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         // rim; keyed off the brightest channel so the hue survives.
         const peak = fb[i] > fb[i + 1] ? fb[i] : fb[i + 1];
         const h = hot[fb[i + 2] > peak ? fb[i + 2] : peak];
-        const w = (h / 255) * LED_CORE_WHITE;
+        const w = (h / 255) * coreWhite;
         cp[j] = r + (255 - r) * w;
         cp[j + 1] = g + (255 - g) * w;
         cp[j + 2] = b + (255 - b) * w;
@@ -789,12 +811,19 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         const ctx = main.getContext("2d")!;
         if (!bodyMask || bodyMask.width !== size || lastMaskStyle !== pixelStyle.current) {
           lastMaskStyle = pixelStyle.current;
-          if (square) {
+          if (hardSquare) {
             bodyMask = makeSquareMask(size, SCREEN_W, 0.82);
             coreMask = null;
+            spillMask = null;
+          } else if (printedStyle) {
+            const printedMasks = makePrintedPixelMasks(size, SCREEN_W);
+            bodyMask = printedMasks.body;
+            coreMask = printedMasks.core;
+            spillMask = printedMasks.spill;
           } else {
             bodyMask = makeLedMask(size, SCREEN_W, 0.22, 0.44);
             coreMask = makeLedMask(size, SCREEN_W, 0.06, 0.26);
+            spillMask = null;
           }
           scratch.width = scratch.height = size;
         }
@@ -804,7 +833,22 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         ctx.globalCompositeOperation = "destination-in";
         ctx.drawImage(bodyMask, 0, 0);
         ctx.globalCompositeOperation = "source-over";
-        if (!square) {
+        if (spillMask) {
+          // Low colored flare through the clear diffuser and onto its walls.
+          const sctx = scratch.getContext("2d")!;
+          sctx.globalCompositeOperation = "source-over";
+          sctx.clearRect(0, 0, size, size);
+          sctx.imageSmoothingEnabled = false;
+          sctx.drawImage(body.canvas, 0, 0, size, size);
+          sctx.globalCompositeOperation = "destination-in";
+          sctx.drawImage(spillMask, 0, 0);
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = 0.2;
+          ctx.drawImage(scratch, 0, 0);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = "source-over";
+        }
+        if (coreMask) {
           // Die on top, added rather than painted so it reads as light.
           const sctx = scratch.getContext("2d")!;
           sctx.globalCompositeOperation = "source-over";
@@ -812,7 +856,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
           sctx.imageSmoothingEnabled = false;
           sctx.drawImage(core.canvas, 0, 0, size, size);
           sctx.globalCompositeOperation = "destination-in";
-          sctx.drawImage(coreMask!, 0, 0);
+          sctx.drawImage(coreMask, 0, 0);
           ctx.globalCompositeOperation = "lighter";
           ctx.drawImage(scratch, 0, 0);
           ctx.globalCompositeOperation = "source-over";

@@ -72,6 +72,8 @@ export const LED_CORE_WHITE = 0.22;
  */
 export const LED_CHROMA = 0.55;
 
+export type PixelStyle = "dots" | "squares" | "printed";
+
 export interface PanelTables {
   /** Input code -> sRGB byte to paint, i.e. what the LED's light looks like. */
   emit: Uint8Array;
@@ -139,6 +141,182 @@ export function makeSquareMask(
     }
   }
   return mask;
+}
+
+function cellNoise(x: number, y: number, salt: number): number {
+  let h = Math.imul(x + 1, 0x9e3779b1) ^ Math.imul(y + 1, 0x85ebca6b) ^ salt;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  return ((h ^ (h >>> 16)) >>> 0) / 0xffffffff;
+}
+
+/** Masks for clear-filament pixels: textured face, hot LED die, and wall spill. */
+export function makePrintedPixelMasks(
+  size: number,
+  cells: number,
+): {
+  body: HTMLCanvasElement;
+  core: HTMLCanvasElement;
+  spill: HTMLCanvasElement;
+} {
+  const body = document.createElement("canvas");
+  const core = document.createElement("canvas");
+  const spill = document.createElement("canvas");
+  body.width = body.height = size;
+  core.width = core.height = size;
+  spill.width = spill.height = size;
+
+  const bodyCtx = body.getContext("2d")!;
+  const coreCtx = core.getContext("2d")!;
+  const spillCtx = spill.getContext("2d")!;
+  const cell = size / cells;
+
+  for (let y = 0; y < cells; y++) {
+    for (let x = 0; x < cells; x++) {
+      const width = cell * (0.79 + (cellNoise(x, y, 11) - 0.5) * 0.11);
+      const height = cell * (0.79 + (cellNoise(x, y, 23) - 0.5) * 0.11);
+      const cx =
+        (x + 0.5) * cell + (cellNoise(x, y, 37) - 0.5) * cell * 0.08;
+      const cy =
+        (y + 0.5) * cell + (cellNoise(x, y, 53) - 0.5) * cell * 0.08;
+      const turn = (cellNoise(x, y, 71) - 0.5) * 0.055;
+      const radius = cell * (0.055 + cellNoise(x, y, 89) * 0.07);
+      const transmission = 0.76 + cellNoise(x, y, 97) * 0.24;
+
+      bodyCtx.save();
+      bodyCtx.translate(cx, cy);
+      bodyCtx.rotate(turn);
+      bodyCtx.beginPath();
+      bodyCtx.roundRect(-width / 2, -height / 2, width, height, radius);
+      bodyCtx.clip();
+
+      bodyCtx.fillStyle = `rgba(255,255,255,${transmission})`;
+      bodyCtx.fillRect(-width / 2, -height / 2, width, height);
+
+      // The close-up of the real print has nested, roughly square tool paths.
+      // Cut dark grooves, then reveal a thinner highlight beside each groove.
+      bodyCtx.globalCompositeOperation = "destination-out";
+      bodyCtx.lineCap = "round";
+      bodyCtx.lineJoin = "round";
+      const ringCount = 2 + Math.floor(cellNoise(x, y, 103) * 3);
+      const ringStep = 0.29 / Math.max(1, ringCount - 1);
+      for (let ring = 0; ring < ringCount; ring++) {
+        const inset = cell * (0.052 + ring * ringStep);
+        const ringJitterX = (cellNoise(x, y, 109 + ring * 17) - 0.5) * cell * 0.075;
+        const ringJitterY = (cellNoise(x, y, 127 + ring * 19) - 0.5) * cell * 0.075;
+        const ringTurn = (cellNoise(x, y, 149 + ring * 23) - 0.5) * 0.11;
+        const ringAlpha = 0.42 + cellNoise(x, y, 173 + ring * 29) * 0.35;
+        const ringWidth = cell * (0.045 + cellNoise(x, y, 197 + ring * 31) * 0.035);
+        const ringW = Math.max(cell * 0.11, width - inset * 2);
+        const ringH = Math.max(cell * 0.11, height - inset * 2);
+
+        bodyCtx.save();
+        bodyCtx.translate(ringJitterX, ringJitterY);
+        bodyCtx.rotate(ringTurn);
+        bodyCtx.beginPath();
+        bodyCtx.roundRect(-ringW / 2, -ringH / 2, ringW, ringH, radius * 0.72);
+        bodyCtx.strokeStyle = `rgba(0,0,0,${ringAlpha})`;
+        bodyCtx.lineWidth = ringWidth;
+        bodyCtx.stroke();
+        bodyCtx.restore();
+      }
+
+      bodyCtx.globalCompositeOperation = "source-over";
+      const highlightCount = 1 + Math.floor(cellNoise(x, y, 211) * 3);
+      const highlightStep = 0.265 / Math.max(1, highlightCount - 1);
+      for (let ring = 0; ring < highlightCount; ring++) {
+        const inset = cell * (0.073 + ring * highlightStep);
+        const ringW = Math.max(cell * 0.13, width - inset * 2);
+        const ringH = Math.max(cell * 0.13, height - inset * 2);
+        bodyCtx.save();
+        bodyCtx.translate(
+          (cellNoise(x, y, 223 + ring * 37) - 0.5) * cell * 0.035,
+          (cellNoise(x, y, 241 + ring * 41) - 0.5) * cell * 0.035,
+        );
+        bodyCtx.rotate((cellNoise(x, y, 263 + ring * 43) - 0.5) * 0.045);
+        bodyCtx.beginPath();
+        bodyCtx.roundRect(-ringW / 2, -ringH / 2, ringW, ringH, radius * 0.6);
+        bodyCtx.strokeStyle = `rgba(255,255,255,${0.14 + cellNoise(x, y, 281 + ring * 47) * 0.12})`;
+        bodyCtx.lineWidth = cell * 0.032;
+        bodyCtx.stroke();
+        bodyCtx.restore();
+      }
+
+      // Tiny voids and dragged strands keep neighboring caps from sharing the
+      // same perfect contour pattern.
+      bodyCtx.globalCompositeOperation = "destination-out";
+      const inclusionCount = 1 + Math.floor(cellNoise(x, y, 293) * 4);
+      for (let mark = 0; mark < inclusionCount; mark++) {
+        const markX = (cellNoise(x, y, 307 + mark * 53) - 0.5) * width * 0.68;
+        const markY = (cellNoise(x, y, 331 + mark * 59) - 0.5) * height * 0.68;
+        const markLength = cell * (0.045 + cellNoise(x, y, 353 + mark * 61) * 0.1);
+        const markTurn = cellNoise(x, y, 379 + mark * 67) * Math.PI;
+        bodyCtx.beginPath();
+        bodyCtx.moveTo(markX, markY);
+        bodyCtx.lineTo(
+          markX + Math.cos(markTurn) * markLength,
+          markY + Math.sin(markTurn) * markLength,
+        );
+        bodyCtx.strokeStyle = `rgba(0,0,0,${0.13 + cellNoise(x, y, 401 + mark * 71) * 0.22})`;
+        bodyCtx.lineWidth = cell * (0.025 + cellNoise(x, y, 419 + mark * 73) * 0.035);
+        bodyCtx.stroke();
+      }
+      bodyCtx.restore();
+
+      coreCtx.save();
+      coreCtx.translate(cx, cy);
+      coreCtx.rotate(turn);
+      coreCtx.beginPath();
+      coreCtx.roundRect(-width / 2, -height / 2, width, height, radius);
+      coreCtx.clip();
+      const centerX = (cellNoise(x, y, 443) - 0.5) * cell * 0.18;
+      const centerY = (cellNoise(x, y, 467) - 0.5) * cell * 0.18;
+      const dieStrength = 0.46 + cellNoise(x, y, 479) * 0.24;
+      const glow = coreCtx.createRadialGradient(
+        centerX,
+        centerY,
+        0,
+        centerX,
+        centerY,
+        cell * 0.155,
+      );
+      glow.addColorStop(0, `rgba(255,255,255,${dieStrength})`);
+      glow.addColorStop(0.18, `rgba(255,255,255,${dieStrength * 0.92})`);
+      glow.addColorStop(0.5, `rgba(255,255,255,${dieStrength * 0.38})`);
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      coreCtx.fillStyle = glow;
+      coreCtx.fillRect(-width / 2, -height / 2, width, height);
+      coreCtx.restore();
+
+      const spillRadius = cell * (0.59 + cellNoise(x, y, 487) * 0.14);
+      const spillGlow = spillCtx.createRadialGradient(
+        cx + centerX,
+        cy + centerY,
+        cell * 0.12,
+        cx + centerX,
+        cy + centerY,
+        spillRadius,
+      );
+      spillGlow.addColorStop(0, "rgba(255,255,255,0.55)");
+      spillGlow.addColorStop(0.5, "rgba(255,255,255,0.25)");
+      spillGlow.addColorStop(1, "rgba(255,255,255,0)");
+      spillCtx.fillStyle = spillGlow;
+      spillCtx.fillRect(
+        cx - spillRadius,
+        cy - spillRadius,
+        spillRadius * 2,
+        spillRadius * 2,
+      );
+
+    }
+  }
+
+  // Keep the bloom mostly outside the cap so it lights the printed walls.
+  spillCtx.globalCompositeOperation = "destination-out";
+  spillCtx.globalAlpha = 0.82;
+  spillCtx.drawImage(body, 0, 0);
+
+  return { body, core, spill };
 }
 
 export function makeLedMask(
