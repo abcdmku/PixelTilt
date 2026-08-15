@@ -115,9 +115,10 @@ SFX and music volume, and a high-score reset. Settings and scores survive
 power cycles. The device keeps them in NVS flash and the emulator in
 localStorage.
 
-Twenty-two games ship in the repo. **Tilt Maze** rolls a ball to a goal past
+Twenty-three games ship in the repo. **Tilt Maze** rolls a ball to a goal past
 holes, **Snake** steers on the dominant tilt axis, **Breakout** maps tilt
-straight to paddle position, and the Sand II family below shares one runtime.
+straight to paddle position, **Puzzles** holds eight puzzle types behind one
+menu entry, and the Sand II family below shares one runtime.
 **WIZ3** is the complete 19-level port of the original Java runtime. Its level
 records, source tile and sprite sheets, and original sound clips live in
 `games/wiz3/` and `assets/sounds/wiz3/`. The 64x64 gameplay art is hand-drawn
@@ -125,6 +126,52 @@ at final resolution in `games/wiz3/art.h`. Tilt moves, CLICK jumps, UP operates
 doors and levers, and DOWN activates the earned invisibility spell. Regenerate
 the source assets with `python tools/extract-wiz3-assets.py --jar
 wiz3-original.jar` from the creator-hosted JAR, not the reduced HTML remake.
+
+### Puzzles
+
+**PUZZLES** is one menu entry holding eight types, laid out simplest first. Pick
+one and it deals boards of that type, each larger or busier than the last,
+until you leave with DOWN. Points bank per run rather than per board, so the
+run total is what reaches the top-three table. A level-4 board pays four times
+a level-1 board at the same depth, which is what makes the hard types worth
+sitting with.
+
+Where you got to in each type is kept for as long as the game is open, so
+picking a type you have played offers **RESUME** at the board you left on or
+**RESTART** from board one. Leaving already banked that run, so a resumed run
+starts from zero points on the board you had reached. Progress is in RAM only:
+the save blob holds settings and score tables, and going back to the main menu
+clears it.
+
+Every board reads the same way. Tilt moves the cursor or the pieces, CLICK is
+the main action, UP is the second action where a puzzle has one, and DOWN goes
+back to the list. CRATES has no use for CLICK, so a tap there deals the level
+again from the start; it fires on release, because a long press belongs to the
+engine's pause menu. Two types can be lost rather than left, MERGE when the
+grid jams and MINES when you dig a mine, and losing ends the run there.
+
+| Puzzle | Level | What it is | Board controls |
+| --- | --- | --- | --- |
+| **LIGHTS** | 1 | Lights Out, where a press flips a cell and its four neighbours | CLICK toggles |
+| **SLIDE** | 2 | Sliding tiles, the 8-puzzle then the 15-puzzle | tilt slides |
+| **MERGE** | 2 | Merge equal tiles until the goal tile appears, tiles slide where they went | tilt shifts |
+| **PIPES** | 2 | Turn every tile until the network hangs off the source | CLICK turns, UP turns back |
+| **CRATES** | 3 | Sokoban across eight boards | tilt walks, UP undoes, tap restarts |
+| **MINES** | 3 | Minesweeper on 8x8, first dig always safe | CLICK digs, UP flags |
+| **NONO** | 3 | Nonogram on 5x5, solved from the row and column run counts | CLICK fills, UP crosses |
+| **FLOW** | 4 | Join each pair of dots and cover every square | CLICK grabs, tilt draws |
+
+FLOW is the one with a rule worth stating twice: joining every pair is only
+half of it, and a board with squares left bare is not finished. The FILL count
+along the bottom is the other half, and once the pairs are all joined any
+remaining bare squares flash amber.
+
+Boards are generated so that a solution exists. LIGHTS scrambles from a dark
+grid, SLIDE shuffles with legal moves only, PIPES lays a random spanning tree
+and then spins the tiles, and FLOW slices a random Hamiltonian path into one
+segment per colour, which is what makes "cover every square" a fair rule to
+enforce. The Sokoban boards are hand-built, and a breadth-first search
+solved each one, so their par really is the shortest solution.
 
 ### Sand II family
 

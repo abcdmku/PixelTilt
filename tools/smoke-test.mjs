@@ -195,6 +195,64 @@ if (rngGame >= 0) {
   check("different RNG seeds diverge", !bytesEqual(seedA1, seedB));
 }
 
+// BREAKOUT schedules each drop within 7 to 20 broken bricks. Exercise the
+// first multiball drop so a bad countdown cannot hide pickups for a full board.
+const breakout = ids.indexOf("breakout");
+check("BREAKOUT power-up regression game is registered", breakout >= 0);
+if (breakout >= 0) {
+  e.pt_init(4);
+  e.pt_launch(breakout);
+  tick(0.35, 0, BTN_CLICK);
+  tick(0.35);
+  let sawMultiballDrop = false;
+  for (let frame = 0; frame < 2400 && !sawMultiballDrop; frame++) {
+    const fb = new Uint8Array(e.memory.buffer, e.pt_framebuffer(), 64 * 64 * 3);
+    let magentaPixels = 0;
+    for (let y = 28; y < 60; y++) {
+      for (let x = 0; x < 64; x++) {
+        const p = (y * 64 + x) * 3;
+        if (fb[p] === 255 && fb[p + 1] === 60 && fb[p + 2] === 200) {
+          magentaPixels++;
+        }
+      }
+    }
+    if (magentaPixels >= 10) sawMultiballDrop = true;
+
+    let lowestBallX = 32;
+    let lowestBallY = -1;
+    for (let y = 8; y < 59; y++) {
+      for (let x = 0; x < 63; x++) {
+        const p = (y * 64 + x) * 3;
+        const right = p + 3;
+        const below = p + 64 * 3;
+        const diagonal = below + 3;
+        if ([p, right, below, diagonal].every(
+          (q) => fb[q] === 255 && fb[q + 1] === 255 && fb[q + 2] === 255,
+        )) {
+          if (y > lowestBallY) {
+            lowestBallX = x + 0.5;
+            lowestBallY = y;
+          }
+        }
+      }
+    }
+    const wantedTilt = Math.max(-1, Math.min(1, (lowestBallX - 32) / 30));
+    const tiltSign = wantedTilt < 0 ? -1 : 1;
+    let tiltLo = 0.08;
+    let tiltHi = 1;
+    for (let step = 0; step < 12; step++) {
+      const raw = (tiltLo + tiltHi) / 2;
+      const curved = (raw - 0.08) / 0.92;
+      const shaped = curved * (0.45 + 0.55 * curved);
+      if (shaped < Math.abs(wantedTilt)) tiltLo = raw;
+      else tiltHi = raw;
+    }
+    const tiltX = Math.abs(wantedTilt) < 0.001 ? 0 : tiltSign * (tiltLo + tiltHi) / 2;
+    tick(tiltX, 0, frame % 120 === 0 ? BTN_CLICK : 0);
+  }
+  check("BREAKOUT shows a power-up within 20 broken bricks", sawMultiballDrop);
+}
+
 // Restore the normal boot state for the remaining menu tests.
 e.pt_init(1234);
 
@@ -279,6 +337,82 @@ check(
   wiz3Source.includes("sfxSample(wiz3_assets::SAMPLE_JUMP, sizeof(wiz3_assets::SAMPLE_JUMP))") &&
     readFileSync(join(root, "games", "wiz3", "assets.h"), "utf8").includes("static const uint8_t SAMPLE_JUMP[]"),
 );
+
+// PUZZLES is eight puzzle types behind one menu entry, so the sweep above only
+// ever reaches the first slot. Walk into each type from its own picker slot
+// and back out again: a puzzle that fails to start, or one that swallows the
+// DOWN that leaves it, would otherwise be invisible here.
+const puzzles = ids.indexOf("puzzles");
+check("PUZZLES is registered as a scored game", puzzles >= 0 && gameHasScores[puzzles]);
+{
+  const puzzleSource = readFileSync(join(root, "games", "puzzles", "game.cpp"), "utf8");
+  const wired = puzzleSource.match(/pz_[a-z0-9]+::start/g) ?? [];
+  check("PUZZLES wires up eight puzzle types", wired.length === 8);
+
+  // The picker's header rule is a full-width line at row 9; no board draws
+  // one, so it is a cheap "are we back on the list" probe.
+  const onPicker = () => {
+    const fb = new Uint8Array(e.memory.buffer, e.pt_framebuffer(), 64 * 64 * 3);
+    const row = 9 * 64 * 3;
+    if (!(fb[row] | fb[row + 1] | fb[row + 2])) return false;
+    for (let x = 1; x < 64; x++) {
+      const i = row + x * 3;
+      if (fb[i] !== fb[row] || fb[i + 1] !== fb[row + 1] || fb[i + 2] !== fb[row + 2]) return false;
+    }
+    return true;
+  };
+  let started = true, returned = true;
+  for (let slot = 0; slot < wired.length; slot++) {
+    e.pt_launch(puzzles);
+    tick();
+    for (let k = 0; k < slot; k++) { tick(0, 0, BTN_DOWN); tick(); }
+    tick(0, 0, BTN_CLICK);
+    tick();
+    started &&= fbLitPixels() > 20 && !onPicker();
+    for (let f = 0; f < 120; f++) {
+      const btn = f % 30 === 10 ? BTN_CLICK : f % 30 === 20 ? BTN_UP : 0;
+      tick(Math.sin(f / 7) * 0.9, Math.cos(f / 9) * 0.9, btn);
+    }
+    // Clear a solved/failed panel first — those own the click, not the board.
+    for (let f = 0; f < 40; f++) tick();
+    tick(0, 0, BTN_CLICK);
+    for (let f = 0; f < 10; f++) tick();
+    tick(0, 0, BTN_DOWN);
+    tick();
+    returned &&= onPicker();
+  }
+  check("every PUZZLES type starts from its own picker slot", started);
+  check("DOWN leaves any PUZZLES type for the picker", returned);
+
+  // CRATES board 1 is hand-built and its optimal solution is five moves, so it
+  // is the one board the test can actually finish. That gets the run past
+  // board 1, which is what makes resume mean anything.
+  const names = [...puzzleSource.matchAll(/\{"([A-Z]+)",\s*\d/g)].map((m) => m[1]);
+  const crates = names.indexOf("CRATES");
+  check("CRATES is one of the wired puzzle types", crates >= 0);
+  // A lean has to cross 0.45 to register and drop under 0.25 to re-arm.
+  const lean = (tx, ty) => {
+    for (let i = 0; i < 3; i++) tick(tx, ty);
+    for (let i = 0; i < 4; i++) tick();
+  };
+  const bannerIsGreen = () => {
+    const fb = new Uint8Array(e.memory.buffer, e.pt_framebuffer(), 64 * 64 * 3);
+    const i = (17 * 64 + 6) * 3;  // top-left corner of the solved panel
+    return fb[i + 1] > 150 && fb[i] < 120;
+  };
+  e.pt_launch(puzzles);
+  tick();
+  for (let k = 0; k < crates; k++) { tick(0, 0, BTN_DOWN); tick(); }
+  tick(0, 0, BTN_CLICK); tick();
+  for (const [tx, ty] of [[-0.9, 0], [-0.9, 0], [0, -0.9], [0.9, 0], [0.9, 0]]) lean(tx, ty);
+  check("CRATES board 1 solves in its five optimal moves", bannerIsGreen());
+  for (let f = 0; f < 130; f++) tick();   // panel rolls into board 2
+  tick(0, 0, BTN_DOWN); tick();           // leave, banking the run
+  tick(0, 0, BTN_CLICK); tick();          // re-enter the same type
+  check("a played PUZZLES type offers resume or restart", onPicker());
+  tick(0, 0, BTN_CLICK); tick();          // confirm the highlighted RESUME
+  check("the resume choice starts a board", !onPicker() && fbLitPixels() > 20);
+}
 
 // Holding CLICK ~0.7s pauses; the pause menu's third item is MAIN MENU.
 e.pt_launch(0);
