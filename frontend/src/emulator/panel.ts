@@ -194,18 +194,15 @@ export function makePrintedPixelMasks(
       bodyCtx.roundRect(-width / 2, -height / 2, width, height, radius);
       bodyCtx.clip();
 
-      const face = bodyCtx.createRadialGradient(
-        -cell * 0.045,
-        -cell * 0.06,
-        0,
-        0,
-        0,
-        cell * 0.5,
+      const face = bodyCtx.createLinearGradient(
+        -width * 0.42,
+        -height * 0.38,
+        width * 0.42,
+        height * 0.38,
       );
-      face.addColorStop(0, `rgba(255,255,255,${transmission})`);
-      face.addColorStop(0.48, `rgba(255,255,255,${transmission * 0.95})`);
-      face.addColorStop(0.82, `rgba(255,255,255,${transmission * 0.8})`);
-      face.addColorStop(1, `rgba(255,255,255,${transmission * 0.58})`);
+      face.addColorStop(0, `rgba(255,255,255,${transmission * 0.88})`);
+      face.addColorStop(0.52, `rgba(255,255,255,${transmission})`);
+      face.addColorStop(1, `rgba(255,255,255,${transmission * 0.82})`);
       bodyCtx.fillStyle = face;
       bodyCtx.fillRect(-width / 2, -height / 2, width, height);
 
@@ -287,18 +284,18 @@ export function makePrintedPixelMasks(
       coreCtx.clip();
       const centerX = (cellNoise(x, y, 443) - 0.5) * cell * 0.18;
       const centerY = (cellNoise(x, y, 467) - 0.5) * cell * 0.18;
-      const dieStrength = 0.7 + cellNoise(x, y, 479) * 0.3;
+      const dieStrength = 0.46 + cellNoise(x, y, 479) * 0.24;
       const glow = coreCtx.createRadialGradient(
         centerX,
         centerY,
         0,
         centerX,
         centerY,
-        cell * 0.22,
+        cell * 0.155,
       );
       glow.addColorStop(0, `rgba(255,255,255,${dieStrength})`);
-      glow.addColorStop(0.12, `rgba(255,255,255,${dieStrength * 0.94})`);
-      glow.addColorStop(0.34, `rgba(255,255,255,${dieStrength * 0.45})`);
+      glow.addColorStop(0.18, `rgba(255,255,255,${dieStrength * 0.92})`);
+      glow.addColorStop(0.5, `rgba(255,255,255,${dieStrength * 0.38})`);
       glow.addColorStop(1, "rgba(255,255,255,0)");
       coreCtx.fillStyle = glow;
       coreCtx.fillRect(-width / 2, -height / 2, width, height);
@@ -324,27 +321,28 @@ export function makePrintedPixelMasks(
         spillRadius * 2,
       );
 
-      // Neutral LEDs reveal the panel's red die through the upper-right side
-      // of the clear cap. The blue-green body is supplied by the color pass.
+      // Mixed colors reveal the red die as a broad band along the cap's upper
+      // edge. The line wanders slightly from pixel to pixel, like uneven clear
+      // filament layers rather than a perfectly aligned optical element.
       fringeCtx.save();
       fringeCtx.translate(cx, cy);
       fringeCtx.rotate(turn);
       fringeCtx.beginPath();
       fringeCtx.roundRect(-width / 2, -height / 2, width, height, radius);
       fringeCtx.clip();
-      const fringeX = cell * (0.16 + (cellNoise(x, y, 503) - 0.5) * 0.14);
-      const fringeY = cell * (-0.16 + (cellNoise(x, y, 521) - 0.5) * 0.14);
-      const fringeStrength = 0.68 + cellNoise(x, y, 541) * 0.32;
-      const fringeGlow = fringeCtx.createRadialGradient(
-        fringeX,
-        fringeY,
-        0,
-        fringeX,
-        fringeY,
-        cell * 0.5,
+      const fringeTilt = (cellNoise(x, y, 503) - 0.5) * width * 0.18;
+      const fringeShift = (cellNoise(x, y, 521) - 0.5) * height * 0.15;
+      const fringeStrength = 0.72 + cellNoise(x, y, 541) * 0.28;
+      const fringeGlow = fringeCtx.createLinearGradient(
+        fringeTilt,
+        -height * 0.58 + fringeShift,
+        -fringeTilt,
+        height * 0.48 + fringeShift,
       );
       fringeGlow.addColorStop(0, `rgba(255,255,255,${fringeStrength})`);
-      fringeGlow.addColorStop(0.42, `rgba(255,255,255,${fringeStrength * 0.67})`);
+      fringeGlow.addColorStop(0.4, `rgba(255,255,255,${fringeStrength * 0.94})`);
+      fringeGlow.addColorStop(0.53, `rgba(255,255,255,${fringeStrength * 0.72})`);
+      fringeGlow.addColorStop(0.66, `rgba(255,255,255,${fringeStrength * 0.08})`);
       fringeGlow.addColorStop(1, "rgba(255,255,255,0)");
       fringeCtx.fillStyle = fringeGlow;
       fringeCtx.fillRect(-width / 2, -height / 2, width, height);

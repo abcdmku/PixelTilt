@@ -782,28 +782,29 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         let r = emit[fb[i]];
         let g = emit[fb[i + 1]];
         let b = emit[fb[i + 2]];
-        let neutralSplit = 0;
+        let opticalSplit = 0;
         // Narrow-band primaries: pull the smallest channel down and rescale
         // so the brightest is unchanged — the panel's colors are purer than
         // sRGB can express, and washed-out mixes are the tell.
         const lo = r < g ? (r < b ? r : b) : g < b ? g : b;
+        const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
+        if (printedStyle && hi > 0) {
+          const middle = r + g + b - hi - lo;
+          opticalSplit = Math.max(0, (middle / hi - 0.18) / 0.82);
+        }
         if (lo > 0) {
-          const hi = r > g ? (r > b ? r : b) : g > b ? g : b;
-          if (printedStyle && hi > 0) {
-            neutralSplit = Math.max(0, (lo / hi - 0.28) / 0.72);
-          }
           const sub = lo * LED_CHROMA;
           const k = hi / (hi - sub);
           r = (r - sub) * k;
           g = (g - sub) * k;
           b = (b - sub) * k;
         }
-        if (neutralSplit > 0) {
-          // Clear filament reads cool through most of a neutral pixel. A
-          // separate warm fringe below restores the visible red die.
-          r *= 1 - neutralSplit * 0.42;
-          g *= 1 - neutralSplit * 0.22;
-          b *= 1 - neutralSplit * 0.04;
+        if (opticalSplit > 0) {
+          // Clear filament reads cooler through the lower face of mixed-color
+          // pixels. A separate warm band restores the red die along the top.
+          r *= 1 - opticalSplit * 0.42;
+          g *= 1 - opticalSplit * 0.22;
+          b *= 1 - opticalSplit * 0.04;
         }
         bp[j] = r;
         bp[j + 1] = g;
@@ -821,7 +822,7 @@ export function useEmulator(): EmulatorState & EmulatorControls {
         fp[j] = 255;
         fp[j + 1] = 42;
         fp[j + 2] = 8;
-        fp[j + 3] = Math.round(h * neutralSplit * 0.82);
+        fp[j + 3] = Math.round(h * opticalSplit * 0.82);
       }
       body.ctx.putImageData(bodyImage, 0, 0);
       core.ctx.putImageData(coreImage, 0, 0);
