@@ -1,5 +1,7 @@
 # PixelTilt
 
+[See it on featured by OpenAI!](https://youcanjustbuildthings.openai.chatgpt.site/projects/submission-fa3ac3d72e2c4a57b08c8e88b955097a28e29e32860831d35544d27e0468a400)
+
 An open-source, modular game framework for a tilt-controlled 64×64 LED matrix
 handheld built from off-the-shelf parts. Write a game once in about 100 lines
 of C++, play it straight away in a browser emulator, then flash the **same
